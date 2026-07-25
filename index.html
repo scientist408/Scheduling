@@ -135,7 +135,7 @@ th{background:var(--light-blue);position:sticky;top:0;z-index:2}
 
 <div class="card">
 <h2>7. Requested Off & Weekly Schedule</h2>
-<p class="small"><b>Before generating:</b> click a day cell to mark R/OFF. <b>After generating:</b> click a regular assignment to turn it into R/OFF, then use Rebalance Schedule.</p>
+<p class="small"><b>Cell click cycle:</b> first click = R/OFF, second click = OFF, third click = restore the original assignment.</p>
 <div class="table-container"><table id="scheduleTable"><thead></thead><tbody></tbody></table></div>
 <div class="legend">
 <span><span class="legend-box" style="background:#1976d2"></span>R/OFF</span>
@@ -187,12 +187,12 @@ function activeDays(){return ALL_DAYS.slice(0,activeDayCount())}
 function maxWorkDays(){return parseInt(document.getElementById("maxWorkDays").value||"5",10)}
 function reworkCount(){return parseInt(document.getElementById("reworkCount").value||"1",10)}
 function escapeHTML(t){return String(t||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]))}
-function createEmployee(name="",id=""){return{name,id,skills:"ALL",roff:Array(7).fill(false),otherPlant:Array(7).fill(false),assignments:Array(7).fill(""),external:false}}
+function createEmployee(name="",id=""){return{name,id,skills:"ALL",roff:Array(7).fill(false),otherPlant:Array(7).fill(false),assignments:Array(7).fill(""),cellCycle:Array(7).fill(0),originalAssignments:Array(7).fill(""),external:false}}
 function displayAssignment(slot){
   if(!slot)return"";
-  const match=slot.match(/^(.*)-P(\d+)$/);
-  if(match)return `${match[1]} (P${match[2]})`;
-  if(slot.startsWith("REWORK-"))return `Rework ${slot.split("-")[1]}`;
+  const match=slot.match(/^(.*)-P\d+$/);
+  if(match)return match[1];
+  if(slot.startsWith("REWORK-"))return "Rework";
   return slot;
 }
 function baseSkill(slot){
@@ -337,9 +337,32 @@ function renderSchedule(){
   })
 }
 function toggleRoff(i,d){
-  const e=employees[i];if(e.otherPlant[d])return;
-  e.roff[d]=!e.roff[d];e.assignments[d]=e.roff[d]?"":(scheduleGenerated?"OFF":"");
-  render();if(scheduleGenerated)validateCoverage();saveData()
+  const e=employees[i];
+  if(!e||e.otherPlant[d])return;
+
+  if(!Array.isArray(e.cellCycle))e.cellCycle=Array(7).fill(0);
+  if(!Array.isArray(e.originalAssignments))e.originalAssignments=Array(7).fill("");
+
+  const state=e.cellCycle[d]||0;
+
+  if(state===0){
+    e.originalAssignments[d]=e.assignments[d]||"";
+    e.roff[d]=true;
+    e.assignments[d]="";
+    e.cellCycle[d]=1;
+  }else if(state===1){
+    e.roff[d]=false;
+    e.assignments[d]="OFF";
+    e.cellCycle[d]=2;
+  }else{
+    e.roff[d]=false;
+    e.assignments[d]=e.originalAssignments[d]||"";
+    e.cellCycle[d]=0;
+  }
+
+  render();
+  if(scheduleGenerated)validateCoverage();
+  saveData();
 }
 function qualified(e,slot){
   const skills=(e.skills||"ALL").toUpperCase().split(/[,;\s]+/).filter(Boolean);
@@ -376,7 +399,11 @@ function confirmGenerateSchedule(){
 }
 function generateSchedule(){
   if(!employees.length){showStatus("Please load employees first.",false);return}
-  externalEmployees=[];employees.forEach(e=>e.assignments=Array(7).fill(""));
+  externalEmployees=[];employees.forEach(e=>{
+    e.assignments=Array(7).fill("");
+    e.cellCycle=Array(7).fill(0);
+    e.originalAssignments=Array(7).fill("");
+  });
   const allow=document.getElementById("allowExternal").checked,maxExt=parseInt(document.getElementById("maxExternal").value||"0",10);
   for(let d=0;d<activeDayCount();d++){
     requiredPositions(d).forEach(slot=>{
@@ -430,12 +457,10 @@ function validateCoverage(){
     externalEmployees.forEach(e=>{if(e.assignments[d])vals.push(e.assignments[d])});
     const req=requiredPositions(d),missing=req.filter(p=>!vals.includes(p));
     if(missing.length)complete=false;
-    cards.push(`<div class="coverage-card"><b>${ALL_DAYS[d]}</b><br>${missing.length?`⚠ Missing: ${missing.map(displayAssignment).join(", ")}`:`✓ ${req.length} positions covered`}</div>`)
+    cards.push(`<div class="coverage-card"><b>${ALL_DAYS[d]}</b><br>${missing.length?`Missing: ${missing.map(displayAssignment).join(", ")}`:`✓ ${req.length} positions covered`}</div>`)
   }
-  const streaks=minimumStreakViolations();
-  if(streaks.length)cards.push(`<div class="coverage-card"><b>2-Day Continuity</b><br>⚠ ${streaks.slice(0,6).join("<br>")}${streaks.length>6?`<br>+${streaks.length-6} more`:""}</div>`);
   document.getElementById("coverage").innerHTML=cards.join("");
-  showStatus(complete?(streaks.length?"Coverage is complete. Review continuity warnings.":"Schedule complete. All required positions are covered."):"Some required positions remain uncovered.",complete&&!streaks.length)
+  showStatus(complete?"Schedule complete. All required positions are covered.":"Some required positions remain uncovered.",complete)
 }
 function populateDaySelect(id){
   const s=document.getElementById(id),old=s.value;s.innerHTML=activeDays().map((d,i)=>`<option value="${i}">${d}</option>`).join("");
@@ -552,7 +577,12 @@ function loadSavedData(){
     const d=JSON.parse(raw);
     machines=Array.isArray(d.machines)&&d.machines.length?d.machines:machines;
     staffingRequirements=Array.isArray(d.staffingRequirements)?d.staffingRequirements:Array.from({length:7},()=>Array(machines.length).fill(1));
-    employees=d.employees||[];externalEmployees=d.externalEmployees||[];otherPlantAllocations=d.otherPlantAllocations||[];scheduleGenerated=!!d.scheduleGenerated;
+    employees=d.employees||[];
+    employees.forEach(e=>{
+      if(!Array.isArray(e.cellCycle))e.cellCycle=Array(7).fill(0);
+      if(!Array.isArray(e.originalAssignments))e.originalAssignments=Array(7).fill("");
+    });
+    externalEmployees=d.externalEmployees||[];otherPlantAllocations=d.otherPlantAllocations||[];scheduleGenerated=!!d.scheduleGenerated;
     if(d.weekStart)document.getElementById("weekStart").value=d.weekStart;
     ["scheduleLength","maxWorkDays","reworkCount","maxExternal"].forEach(id=>{if(d[id]!==undefined)document.getElementById(id).value=d[id]});
     if(d.allowExternal!==undefined)document.getElementById("allowExternal").checked=d.allowExternal;
