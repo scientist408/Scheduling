@@ -5,67 +5,560 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Production Employee Scheduler</title>
 <style>
-:root{--blue:#1e5ea8;--blue-dark:#174a85;--light-blue:#e8f0fa;--border:#c9d2dd;--background:#f3f6fa;--roff:#ff1744;--roff-text:#ffffff;--off:#ff5252;--external:#fff0bd;--green:#dff4e8;--green-text:#12683e;--warning:#fff0d1;--warning-text:#825300;--other:#dff3ff;--other-text:#075985;--machine:#e4f2ff;--rework:#e8e0f4}
-*{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--background);color:#253242}.container{max-width:1750px;margin:auto;padding:20px}h1{margin:0;font-size:30px}.subtitle{margin-top:6px;color:#667383}.card{background:#fff;border:1px solid #dbe1e8;border-radius:12px;padding:18px;margin-top:16px;box-shadow:0 2px 8px rgba(0,0,0,.04)}h2{margin-top:0;font-size:20px}textarea{width:100%;min-height:100px;resize:vertical;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:Consolas,monospace;font-size:14px}.controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:12px}button{border:none;border-radius:7px;padding:10px 14px;font-size:14px;font-weight:bold;cursor:pointer;background:var(--blue);color:#fff}button:hover{background:var(--blue-dark)}button.gray{background:#626e7d}button.light{background:#e5ebf3;color:#253242}button.red{background:#a8322b}button.orange{background:#9a6700}input,select{padding:8px;border:1px solid var(--border);border-radius:6px}input[type="number"]{width:75px}.small{color:#6a7583;font-size:13px}.table-container{overflow:auto;border:1px solid var(--border);border-radius:8px}table{border-collapse:collapse;width:100%;min-width:1200px}th,td{border:1px solid var(--border);padding:7px;text-align:center}th{background:var(--light-blue);position:sticky;top:0;z-index:2}.employee-name{min-width:170px;text-align:left}.employee-id{min-width:100px}.skills-col{min-width:220px;text-align:left}.employee-input{border:none;background:transparent;width:100%;font-size:14px}.day-cell{min-width:110px;cursor:pointer;font-weight:bold;user-select:none}.day-cell:hover{outline:2px solid #6b9bd1;outline-offset:-2px}.roff{background:var(--roff)!important;color:var(--roff-text);box-shadow:inset 0 0 0 2px #b00020}.off{background:var(--off)!important;color:#fff;box-shadow:inset 0 0 0 2px #c62828}.external{background:var(--external)!important;color:#755500}.rework{background:var(--rework)!important;color:#53377c}.machine{background:var(--machine)!important;color:#184e82}.other-plant{background:var(--other)!important;color:var(--other-text)}.legend{display:flex;gap:18px;flex-wrap:wrap;margin-top:12px;font-size:13px}.legend-box{width:15px;height:15px;border:1px solid #aaa;display:inline-block;vertical-align:-3px;margin-right:5px}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}.status{margin-top:14px;padding:12px;border-radius:8px;font-weight:bold}.success{background:var(--green);color:var(--green-text)}.warning{background:var(--warning);color:var(--warning-text)}.coverage-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:8px;margin-top:12px}.coverage-card{padding:10px;border:1px solid #d6dde5;border-radius:7px;background:#fafbfd;font-size:13px}.summary{margin-top:15px;overflow:auto}.summary table{min-width:900px}.external-row,.allocation-row{display:flex;gap:8px;align-items:center;margin-bottom:7px;flex-wrap:wrap}.external-row input{padding:7px;border:1px solid var(--border);border-radius:5px}.grid-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:14px}.copy-popup-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9998}.copy-popup{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:92%;max-width:1050px;background:#fff;border-radius:12px;padding:20px;z-index:9999;box-shadow:0 10px 35px rgba(0,0,0,.3)}.copy-popup textarea{height:390px;white-space:pre;overflow:auto}.copy-popup-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}@media(max-width:700px){.container{padding:10px}h1{font-size:23px}button{width:100%}.grid-2{grid-template-columns:1fr}}
+:root{
+  --blue:#1e5ea8;--blue-dark:#174a85;--light-blue:#e8f0fa;--border:#c9d2dd;
+  --background:#f3f6fa;--roff:#1976d2;--roff-text:#fff;--off:#ff3b30;
+  --external:#fff0bd;--green:#dff4e8;--green-text:#12683e;
+  --warning:#fff0d1;--warning-text:#825300;--other:#ffb74d;--other-text:#5d3a00;
+  --machine:#dff4e8;--rework:#e8e0f4
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--background);color:#253242}
+.container{max-width:1800px;margin:auto;padding:20px}
+h1{margin:0;font-size:30px}.subtitle{margin-top:6px;color:#667383}
+.card{background:#fff;border:1px solid #dbe1e8;border-radius:12px;padding:18px;margin-top:16px;box-shadow:0 2px 8px rgba(0,0,0,.04)}
+h2{margin-top:0;font-size:20px}
+textarea{width:100%;min-height:100px;resize:vertical;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:Consolas,monospace;font-size:14px}
+.controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:12px}
+button{border:none;border-radius:7px;padding:10px 14px;font-size:14px;font-weight:bold;cursor:pointer;background:var(--blue);color:#fff}
+button:hover{background:var(--blue-dark)}button.gray{background:#626e7d}button.light{background:#e5ebf3;color:#253242}button.red{background:#a8322b}button.orange{background:#9a6700}
+input,select{padding:8px;border:1px solid var(--border);border-radius:6px}
+input[type="number"]{width:75px}.small{color:#6a7583;font-size:13px}
+.table-container{overflow:auto;border:1px solid var(--border);border-radius:8px}
+table{border-collapse:collapse;width:100%;min-width:1200px}
+th,td{border:1px solid var(--border);padding:7px;text-align:center}
+th{background:var(--light-blue);position:sticky;top:0;z-index:2}
+.employee-name{min-width:170px;text-align:left}.employee-id{min-width:100px}.employee-input{border:none;background:transparent;width:100%;font-size:14px}
+.day-cell{min-width:110px;cursor:pointer;font-weight:bold;user-select:none}.day-cell:hover{outline:2px solid #6b9bd1;outline-offset:-2px}
+.roff{background:var(--roff)!important;color:var(--roff-text);box-shadow:inset 0 0 0 2px #0d47a1}
+.off{background:var(--off)!important;color:#fff;box-shadow:inset 0 0 0 2px #b71c1c}
+.external{background:var(--external)!important;color:#755500}.rework{background:var(--rework)!important;color:#53377c}
+.machine{background:var(--machine)!important;color:#12683e}.other-plant{background:var(--other)!important;color:var(--other-text)}
+.legend{display:flex;gap:18px;flex-wrap:wrap;margin-top:12px;font-size:13px}
+.legend-box{width:15px;height:15px;border:1px solid #aaa;display:inline-block;vertical-align:-3px;margin-right:5px}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+.status{margin-top:14px;padding:12px;border-radius:8px;font-weight:bold}.success{background:var(--green);color:var(--green-text)}.warning{background:var(--warning);color:var(--warning-text)}
+.coverage-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(225px,1fr));gap:8px;margin-top:12px}
+.coverage-card{padding:10px;border:1px solid #d6dde5;border-radius:7px;background:#fafbfd;font-size:13px}
+.summary{margin-top:15px;overflow:auto}.summary table{min-width:900px}
+.external-row,.allocation-row{display:flex;gap:8px;align-items:center;margin-bottom:7px;flex-wrap:wrap}
+.grid-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:14px}
+.machine-list{min-height:75px}.preset-result{font-weight:bold;color:#174a85}
+.copy-popup-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9998}
+.copy-popup{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:92%;max-width:1050px;background:#fff;border-radius:12px;padding:20px;z-index:9999;box-shadow:0 10px 35px rgba(0,0,0,.3)}
+.copy-popup textarea{height:390px;white-space:pre;overflow:auto}.copy-popup-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+@media(max-width:700px){.container{padding:10px}h1{font-size:23px}button{width:100%}.grid-2{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 <div class="container">
 <h1>Production Employee Scheduler</h1>
-<p class="subtitle">B1–B13 • Rework • Skill-Based Assignment • R/OFF • Other-Plant Allocation • Call-Off Replacement • 5/6/7-Day Schedule</p>
-<div class="card"><h2>1. Paste Employee List</h2><p class="small">Paste Employee Name and Employee ID from Excel. After loading, enter each worker’s skills. Use <b>ALL</b> for all machines and Rework, or enter items such as <b>B1,B2,B5,REWORK</b>.</p><textarea id="pasteBox" placeholder="John Smith&#9;1001&#10;Mary Jones&#9;1002&#10;Sam Patel&#9;1003"></textarea><div class="controls"><button onclick="loadEmployees()">Load Employees</button><button class="light" onclick="addEmployee()">+ Add Employee</button><label>Week Starting: <input type="date" id="weekStart"></label></div></div>
-<div class="card"><h2>2. Schedule Settings</h2><div class="controls"><label>Schedule length:<select id="scheduleLength" onchange="settingsChanged()"><option value="5">5 days</option><option value="6">6 days</option><option value="7" selected>7 days</option></select></label><label>Maximum workdays/employee:<select id="maxWorkDays" onchange="settingsChanged()"><option value="5" selected>5</option><option value="6">6</option><option value="7">7</option></select></label><label>Rework employees/day:<input type="number" id="reworkCount" value="1" min="0" max="10" onchange="settingsChanged()"></label><label><input type="checkbox" id="allowExternal" checked onchange="settingsChanged()"> Allow employees from another plant</label><label>Max external/day: <input type="number" id="maxExternal" value="20" min="0" max="50" onchange="settingsChanged()"></label><label><input type="checkbox" id="rotateMachines" checked onchange="settingsChanged()"> Rotate assignments</label></div><p class="small">The scheduler prioritizes any employee who has worked only one consecutive day, so the employee receives a second continuous workday before being assigned OFF whenever staffing and skill coverage allow it. Any remaining violations are shown in validation.</p></div>
-<div class="card"><h2>3. Employee Skills</h2><div class="table-container"><table id="employeeSetupTable"><thead><tr><th>S.N.</th><th>Employee Name</th><th>Employee ID</th><th>Qualified Assignments</th><th>Remove</th></tr></thead><tbody></tbody></table></div></div>
-<div class="card"><h2>5. Allocate Employees to Other Plants</h2><p class="small">Select a worker, the first day at the other plant, and the number of days. Those days show as <b>OTHER PLANT</b> and the worker is excluded from this plant’s schedule.</p><div class="controls"><label>Employee: <select id="allocationEmployee"></select></label><label>Start day: <select id="allocationStartDay"></select></label><label>Number of days: <input type="number" id="allocationDays" value="1" min="1" max="7"></label><button onclick="addOtherPlantAllocation()">Allocate to Other Plant</button></div><div id="allocationList" style="margin-top:12px"></div></div>
-<div class="card"><h2>6. Requested Off & Weekly Schedule</h2><p class="small"><b>Before generating:</b> click a day cell to mark R/OFF. <b>After generating:</b> click an assignment to change it to R/OFF, then click Rebalance Schedule. OTHER PLANT days cannot be changed from this table.</p><div class="table-container"><table id="scheduleTable"><thead></thead><tbody></tbody></table></div><div class="legend"><span><span class="legend-box" style="background:#ff1744"></span>R/OFF</span><span><span class="legend-box" style="background:#ff5252"></span>OFF</span><span><span class="legend-box" style="background:#e4f2ff"></span>Machine</span><span><span class="legend-box" style="background:#e8e0f4"></span>Rework</span><span><span class="legend-box" style="background:#dff3ff"></span>Other Plant</span><span><span class="legend-box" style="background:#fff0bd"></span>External Employee</span></div><div class="actions"><button onclick="generateSchedule()">Generate New Schedule</button><button onclick="rebalanceSchedule()">Rebalance Schedule</button><button class="gray" onclick="copySchedule()">Copy Schedule for Excel</button><button class="gray" onclick="openCopySchedule()">View / Select Schedule</button><button class="gray" onclick="downloadCSV()">Download CSV</button><button class="red" onclick="clearAll()">Clear All / New Week</button></div><div id="status"></div><div id="coverage" class="coverage-grid"></div></div>
-<div class="card"><h2>7. Manual Skill-Based Swap</h2><p class="small">Swap two workers between machines or Rework on the same day. The swap is blocked when either worker is not qualified, unless Manual Override is checked.</p><div class="controls"><label>Day: <select id="swapDay" onchange="refreshSwapEmployees()"></select></label><label>Worker 1: <select id="swapEmployeeA"></select></label><label>Worker 2: <select id="swapEmployeeB"></select></label><label><input type="checkbox" id="forceSwap"> Manual Override</label><button class="orange" onclick="swapAssignments()">Swap Assignments</button></div><div id="swapStatus"></div></div>
-<div class="grid-2"><div class="card"><h2>8. External Plant Employees Used Here</h2><p class="small">When this plant is short, enter the actual borrowed employee’s name, ID, and skills.</p><div id="externalEmployees">No external employees currently required.</div></div><div class="card"><h2>9. Weekly Employee Summary</h2><div id="employeeSummary" class="summary"></div></div></div>
+<p class="subtitle">Custom Machines • Daily Packer Requirements • Skills • R/OFF • Other Plant • Rework • 5/6/7-Day Scheduling</p>
+
+<div class="card">
+<h2>1. Paste Employee List</h2>
+<p class="small">Paste Employee Name and Employee ID from Excel. Use <b>ALL</b> for all machines and Rework, or enter skills such as <b>1B,2B,5B,REWORK</b>.</p>
+<textarea id="pasteBox" placeholder="John Smith	1001&#10;Mary Jones	1002&#10;Sam Patel	1003"></textarea>
+<div class="controls">
+<button onclick="loadEmployees()">Load Employees</button>
+<button class="light" onclick="addEmployee()">+ Add Employee</button>
+<label>Week Starting: <input type="date" id="weekStart"></label>
 </div>
+</div>
+
+<div class="card">
+<h2>2. Machine Setup</h2>
+<p class="small">Create machines as prefix format such as B1–B13, suffix format such as 1B–8B, or type any custom list.</p>
+<div class="controls">
+<label>Start: <input type="number" id="machineStart" value="1" min="0"></label>
+<label>End: <input type="number" id="machineEnd" value="13" min="0"></label>
+<label>Prefix: <input id="machinePrefix" value="B" style="width:80px"></label>
+<label>Suffix: <input id="machineSuffix" value="" style="width:80px"></label>
+<button onclick="generateMachineRange()">Create Range</button>
+</div>
+<p class="small">Examples: Prefix B + 1–13 creates B1 through B13. Suffix B + 1–8 creates 1B through 8B.</p>
+<textarea id="machineList" class="machine-list" placeholder="1B, 2B, 3B, 4B"></textarea>
+<div class="controls">
+<button onclick="applyMachineList()">Apply Machine List</button>
+<button class="light" onclick="resetMachines()">Reset to B1–B13</button>
+<span id="machineResult" class="preset-result"></span>
+</div>
+</div>
+
+<div class="card">
+<h2>3. Schedule Settings</h2>
+<div class="controls">
+<label>Schedule length:
+<select id="scheduleLength" onchange="settingsChanged()"><option value="5">5 days</option><option value="6">6 days</option><option value="7" selected>7 days</option></select></label>
+<label>Maximum workdays/employee:
+<select id="maxWorkDays" onchange="settingsChanged()"><option value="5" selected>5</option><option value="6">6</option><option value="7">7</option></select></label>
+<label>Rework employees/day: <input type="number" id="reworkCount" value="1" min="0" max="20" onchange="settingsChanged()"></label>
+<label><input type="checkbox" id="allowExternal" checked onchange="settingsChanged()"> Allow external employees</label>
+<label>Max external/day: <input type="number" id="maxExternal" value="30" min="0" max="100" onchange="settingsChanged()"></label>
+<label><input type="checkbox" id="rotateMachines" checked onchange="settingsChanged()"> Rotate assignments</label>
+</div>
+<p class="small">Other Plant days count as 8 hours and toward the selected weekly workday limit.</p>
+</div>
+
+<div class="card">
+<h2>4. Daily Staffing Requirements</h2>
+<p class="small">Enter the number of packers required for each machine on each day. For example, set Monday 1B to 2 and Tuesday 1B to 1.</p>
+<div class="controls">
+<button class="light" onclick="setAllStaffing(1)">Set All to 1</button>
+<button class="light" onclick="setAllStaffing(2)">Set All to 2</button>
+<button class="light" onclick="setAllStaffing(0)">Set All to 0</button>
+</div>
+<div class="table-container"><table id="staffingTable"><thead></thead><tbody></tbody></table></div>
+</div>
+
+<div class="card">
+<h2>5. Employee Skills</h2>
+<div class="table-container">
+<table id="employeeSetupTable">
+<thead><tr><th>S.N.</th><th>Employee Name</th><th>Employee ID</th><th>Qualified Assignments</th><th>Remove</th></tr></thead>
+<tbody></tbody>
+</table>
+</div>
+</div>
+
+<div class="card">
+<h2>6. Allocate Employees to Other Plants</h2>
+<p class="small">Other Plant days are excluded from this plant’s assignments but count as 8 work hours per day.</p>
+<div class="controls">
+<label>Employee: <select id="allocationEmployee"></select></label>
+<label>Start day: <select id="allocationStartDay"></select></label>
+<label>Number of days: <input type="number" id="allocationDays" value="1" min="1" max="7"></label>
+<button onclick="addOtherPlantAllocation()">Allocate to Other Plant</button>
+</div>
+<div id="allocationList" style="margin-top:12px"></div>
+</div>
+
+<div class="card">
+<h2>7. Requested Off & Weekly Schedule</h2>
+<p class="small"><b>Before generating:</b> click a day cell to mark R/OFF. <b>After generating:</b> click a regular assignment to turn it into R/OFF, then use Rebalance Schedule.</p>
+<div class="table-container"><table id="scheduleTable"><thead></thead><tbody></tbody></table></div>
+<div class="legend">
+<span><span class="legend-box" style="background:#1976d2"></span>R/OFF</span>
+<span><span class="legend-box" style="background:#ff3b30"></span>OFF</span>
+<span><span class="legend-box" style="background:#dff4e8"></span>Machine</span>
+<span><span class="legend-box" style="background:#e8e0f4"></span>Rework</span>
+<span><span class="legend-box" style="background:#ffb74d"></span>Other Plant</span>
+<span><span class="legend-box" style="background:#fff0bd"></span>External Employee</span>
+</div>
+<div class="actions">
+<button onclick="confirmGenerateSchedule()">Generate New Schedule</button>
+<button onclick="rebalanceSchedule()">Rebalance Schedule</button>
+<button class="gray" onclick="copySchedule()">Copy Schedule for Excel</button>
+<button class="gray" onclick="openCopySchedule()">View / Select Schedule</button>
+<button class="gray" onclick="downloadCSV()">Download CSV</button>
+<button class="red" onclick="clearAll()">Clear All / New Week</button>
+</div>
+<div id="status"></div>
+<div id="coverage" class="coverage-grid"></div>
+</div>
+
+<div class="card">
+<h2>8. Manual Skill-Based Swap</h2>
+<p class="small">Swap two workers between machines or Rework on the same day. The app checks both workers’ qualifications.</p>
+<div class="controls">
+<label>Day: <select id="swapDay" onchange="refreshSwapEmployees()"></select></label>
+<label>Worker 1: <select id="swapEmployeeA"></select></label>
+<label>Worker 2: <select id="swapEmployeeB"></select></label>
+<label><input type="checkbox" id="forceSwap"> Manual Override</label>
+<button class="orange" onclick="swapAssignments()">Swap Assignments</button>
+</div>
+<div id="swapStatus"></div>
+</div>
+
+<div class="grid-2">
+<div class="card"><h2>9. External Employees Used Here</h2><div id="externalEmployees"></div></div>
+<div class="card"><h2>10. Weekly Employee Summary</h2><div id="employeeSummary" class="summary"></div></div>
+</div>
+</div>
+
 <script>
 const ALL_DAYS=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
-const MACHINES=["B1","B2","B3","B4","B5","B6","B7","B8","B9","B10","B11","B12","B13"];
+let machines=["B1","B2","B3","B4","B5","B6","B7","B8","B9","B10","B11","B12","B13"];
+let staffingRequirements=Array.from({length:7},()=>Array(machines.length).fill(1));
 let employees=[],externalEmployees=[],otherPlantAllocations=[],scheduleGenerated=false;
-let staffingRequirements=Array.from({length:7},()=>Array(13).fill(1));
-function activeDayCount(){return parseInt(document.getElementById("scheduleLength").value||"7",10)}function activeDays(){return ALL_DAYS.slice(0,activeDayCount())}function maxWorkDays(){return parseInt(document.getElementById("maxWorkDays").value||"5",10)}function reworkCount(){return parseInt(document.getElementById("reworkCount").value||"1",10)}
-function displayAssignment(slot){if(!slot)return"";if(slot.startsWith("B")&&slot.includes("-P"))return slot.replace("-P"," (P")+")";if(slot.startsWith("REWORK-"))return"Rework "+slot.split("-")[1];return slot}function baseSkill(slot){if(!slot)return"";if(slot.startsWith("B"))return slot.split("-")[0];if(slot.startsWith("REWORK"))return"REWORK";return slot.toUpperCase()}
-function requiredPositions(day){const positions=[];MACHINES.forEach((m,mi)=>{const count=Math.max(0,parseInt(staffingRequirements[day]?.[mi]??1,10));for(let p=1;p<=count;p++)positions.push(`${m}-P${p}`)});for(let r=1;r<=reworkCount();r++)positions.push(`REWORK-${r}`);return positions}
+
+function activeDayCount(){return parseInt(document.getElementById("scheduleLength").value||"7",10)}
+function activeDays(){return ALL_DAYS.slice(0,activeDayCount())}
+function maxWorkDays(){return parseInt(document.getElementById("maxWorkDays").value||"5",10)}
+function reworkCount(){return parseInt(document.getElementById("reworkCount").value||"1",10)}
+function escapeHTML(t){return String(t||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]))}
 function createEmployee(name="",id=""){return{name,id,skills:"ALL",roff:Array(7).fill(false),otherPlant:Array(7).fill(false),assignments:Array(7).fill(""),external:false}}
-function initialize(){const today=new Date(),day=today.getDay(),diff=day===0?-6:1-day;today.setDate(today.getDate()+diff);document.getElementById("weekStart").value=today.toISOString().slice(0,10);loadSavedData();populateStaticDaySelectors();render()}
-function settingsChanged(){render();saveData()}document.getElementById("weekStart").addEventListener("change",()=>{render();saveData()});
-function parseEmployees(text){return text.trim().split(/\r?\n/).filter(x=>x.trim()).map(line=>{let parts=line.split("\t");if(parts.length<2)parts=line.split(",");if(parts.length<2){const m=line.match(/^(.*?)\s{2,}(.+)$/);parts=m?[m[1],m[2]]:[line,""]}return createEmployee((parts[0]||"").trim(),(parts[1]||"").trim())}).filter(e=>e.name||e.id)}
-function loadEmployees(){const text=document.getElementById("pasteBox").value.trim();if(!text){showStatus("Please paste employee names and IDs first.",false);return}employees=parseEmployees(text);externalEmployees=[];otherPlantAllocations=[];scheduleGenerated=false;render();saveData();showStatus(`${employees.length} employees loaded. Enter skills and mark R/OFF days.`,true)}
-function addEmployee(){employees.push(createEmployee());render();saveData()}function removeEmployee(i){if(!confirm(`Remove ${employees[i].name||"this employee"}?`))return;employees.splice(i,1);otherPlantAllocations=otherPlantAllocations.filter(a=>a.employeeIndex!==i).map(a=>({...a,employeeIndex:a.employeeIndex>i?a.employeeIndex-1:a.employeeIndex}));render();saveData()}
-function getDisplayDate(index){const base=document.getElementById("weekStart").value;if(!base)return"";const d=new Date(base+"T12:00:00");d.setDate(d.getDate()+index);return d.toLocaleDateString(undefined,{month:"short",day:"numeric"})}function escapeHTML(t){return String(t||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]))}
-function render(){renderStaffingTable();renderEmployeeSetup();renderSchedule();renderAllocations();renderExternalPanel();renderSummary();populateEmployeeSelectors();refreshSwapEmployees()}
-function renderStaffingTable(){const table=document.getElementById("staffingTable");if(!table)return;const days=activeDays();table.querySelector("thead").innerHTML=`<tr><th>Machine</th>${days.map((d,i)=>`<th>${d}<br><span class="small">${getDisplayDate(i)}</span></th>`).join("")}</tr>`;table.querySelector("tbody").innerHTML=MACHINES.map((m,mi)=>`<tr><th>${m}</th>${days.map((_,d)=>`<td><input type="number" min="0" max="6" value="${staffingRequirements[d][mi]}" onchange="updateStaffing(${d},${mi},this.value)"></td>`).join("")}</tr>`).join("")}
-function updateStaffing(day,machine,value){staffingRequirements[day][machine]=Math.max(0,Math.min(6,parseInt(value||"0",10)));if(scheduleGenerated){showStatus("Staffing requirement changed. Click Generate New Schedule or Rebalance Schedule.",false)}saveData()}
-function setAllStaffing(value){for(let d=0;d<activeDayCount();d++)for(let m=0;m<MACHINES.length;m++)staffingRequirements[d][m]=value;renderStaffingTable();if(scheduleGenerated)showStatus("Staffing requirements changed. Regenerate or rebalance the schedule.",false);saveData()}
-function renderEmployeeSetup(){const body=document.querySelector("#employeeSetupTable tbody");body.innerHTML="";employees.forEach((e,i)=>{const tr=document.createElement("tr");tr.innerHTML=`<td>${i+1}</td><td><input class="employee-input" value="${escapeHTML(e.name)}" oninput="employees[${i}].name=this.value;renderSchedule();populateEmployeeSelectors();saveData()"></td><td><input class="employee-input" value="${escapeHTML(e.id)}" oninput="employees[${i}].id=this.value;renderSchedule();saveData()"></td><td><input class="employee-input" value="${escapeHTML(e.skills||"ALL")}" placeholder="ALL or B1,B2,REWORK" oninput="employees[${i}].skills=this.value;saveData()"></td><td><button class="red" onclick="removeEmployee(${i})">Remove</button></td>`;body.appendChild(tr)})}
-function renderSchedule(){const table=document.getElementById("scheduleTable"),thead=table.querySelector("thead"),tbody=table.querySelector("tbody"),days=activeDays();thead.innerHTML=`<tr><th>S.N.</th><th>Employee Name</th><th>Employee ID</th>${days.map((d,i)=>`<th>${d}<br><span class="small">${getDisplayDate(i)}</span></th>`).join("")}</tr>`;tbody.innerHTML="";[...employees,...externalEmployees].forEach((e,rowIndex)=>{const isExternal=rowIndex>=employees.length,idx=isExternal?rowIndex-employees.length:rowIndex;const tr=document.createElement("tr");let cells="";for(let d=0;d<days.length;d++){let value="",css="day-cell";if(e.otherPlant[d]){value="OTHER PLANT";css+=" other-plant"}else if(e.roff[d]){value="R/OFF";css+=" roff"}else{value=e.assignments[d]||"";if(value==="OFF")css+=" off";else if(value.startsWith("REWORK"))css+=" rework";else if(value.startsWith("B"))css+=" machine"}if(isExternal)css+=" external";const click=isExternal||e.otherPlant[d]?"":`onclick="toggleRoff(${idx},${d})"`;cells+=`<td class="${css}" ${click}>${escapeHTML(displayAssignment(value))}</td>`}tr.innerHTML=`<td>${rowIndex+1}</td><td class="employee-name">${escapeHTML(e.name)}</td><td class="employee-id">${escapeHTML(e.id)}</td>${cells}`;tbody.appendChild(tr)})}
-function toggleRoff(i,d){const e=employees[i];if(e.otherPlant[d])return;e.roff[d]=!e.roff[d];if(e.roff[d])e.assignments[d]="";else if(scheduleGenerated)e.assignments[d]="OFF";render();validateCoverage();saveData()}
-function qualified(e,slot){const skills=(e.skills||"ALL").toUpperCase().split(/[,;\s]+/).filter(Boolean);return skills.includes("ALL")||skills.includes(baseSkill(slot))}function isWorkedDay(e,d){return !!e.otherPlant[d]||!!(e.assignments[d]&&e.assignments[d]!=="OFF")}function localWorkCount(e){return e.assignments.slice(0,activeDayCount()).filter(a=>a&&a!=="OFF").length}function workCount(e){let count=0;for(let d=0;d<activeDayCount();d++)if(isWorkedDay(e,d))count++;return count}function streakBefore(e,day){let c=0;for(let i=day-1;i>=0;i--){if(isWorkedDay(e,i))c++;else break}return c}function machineCount(e,slot){const b=baseSkill(slot);return e.assignments.filter(a=>baseSkill(a)===b).length}
-function chooseEmployee(day,slot){let candidates=employees.filter(e=>!e.roff[day]&&!e.otherPlant[day]&&(!e.assignments[day]||e.assignments[day]==="OFF")&&workCount(e)<maxWorkDays()&&qualified(e,slot));candidates.sort((a,b)=>{const as=streakBefore(a,day),bs=streakBefore(b,day);if(as===1&&bs!==1)return-1;if(bs===1&&as!==1)return 1;const at=Math.min(maxWorkDays(),activeDayCount()-a.roff.slice(0,activeDayCount()).filter(Boolean).length-a.otherPlant.slice(0,activeDayCount()).filter(Boolean).length),bt=Math.min(maxWorkDays(),activeDayCount()-b.roff.slice(0,activeDayCount()).filter(Boolean).length-b.otherPlant.slice(0,activeDayCount()).filter(Boolean).length),an=at-workCount(a),bn=bt-workCount(b);if(an!==bn)return bn-an;if(workCount(a)!==workCount(b))return workCount(a)-workCount(b);if(document.getElementById("rotateMachines").checked){const am=machineCount(a,slot),bm=machineCount(b,slot);if(am!==bm)return am-bm}return a.name.localeCompare(b.name)});return candidates[0]||null}
-function createExternalAssignment(day,slot){const ext=createEmployee("External Plant Employee","EXT");ext.external=true;ext.skills="ALL";ext.assignments[day]=slot;externalEmployees.push(ext)}
-function generateSchedule(){if(!employees.length){showStatus("Please load employees first.",false);return}externalEmployees=[];employees.forEach(e=>e.assignments=Array(7).fill(""));const allow=document.getElementById("allowExternal").checked,maxExt=parseInt(document.getElementById("maxExternal").value||"0",10);for(let d=0;d<activeDayCount();d++){const positions=requiredPositions(d);positions.forEach(slot=>{const e=chooseEmployee(d,slot);if(e)e.assignments[d]=slot;else if(allow&&externalEmployees.filter(x=>x.assignments[d]).length<maxExt)createExternalAssignment(d,slot)});employees.forEach(e=>{if(e.roff[d]||e.otherPlant[d])e.assignments[d]="";else if(!e.assignments[d])e.assignments[d]="OFF"})}scheduleGenerated=true;render();validateCoverage();saveData()}
-function rebalanceSchedule(){if(!scheduleGenerated){generateSchedule();return}externalEmployees=[];const allow=document.getElementById("allowExternal").checked,maxExt=parseInt(document.getElementById("maxExternal").value||"0",10);for(let d=0;d<activeDayCount();d++){const positions=requiredPositions(d);const occupied=new Set();employees.forEach(e=>{if(e.roff[d]||e.otherPlant[d])e.assignments[d]="";else if(e.assignments[d]&&e.assignments[d]!=="OFF")occupied.add(e.assignments[d])});positions.filter(p=>!occupied.has(p)).forEach(slot=>{const e=chooseEmployee(d,slot);if(e)e.assignments[d]=slot;else if(allow&&externalEmployees.filter(x=>x.assignments[d]).length<maxExt)createExternalAssignment(d,slot)})}employees.forEach(e=>{for(let d=0;d<activeDayCount();d++){if(e.roff[d]||e.otherPlant[d])e.assignments[d]="";else if(!e.assignments[d])e.assignments[d]="OFF"}});render();validateCoverage();saveData()}
-function minimumStreakViolations(){const violations=[];employees.forEach(e=>{const n=activeDayCount();for(let d=0;d<n;d++){const worked=isWorkedDay(e,d);if(!worked)continue;const prev=d>0&&e.assignments[d-1]&&e.assignments[d-1]!=="OFF",next=d<n-1&&e.assignments[d+1]&&e.assignments[d+1]!=="OFF";if(!prev&&!next)violations.push(`${e.name||e.id}: isolated workday on ${ALL_DAYS[d]}`)}});return violations}
-function validateCoverage(){const boxes=[];let complete=true;for(let d=0;d<activeDayCount();d++){const positions=requiredPositions(d),vals=[];employees.forEach(e=>{if(!e.roff[d]&&!e.otherPlant[d]&&e.assignments[d]&&e.assignments[d]!=="OFF")vals.push(e.assignments[d])});externalEmployees.forEach(e=>{if(e.assignments[d])vals.push(e.assignments[d])});const missing=positions.filter(p=>!vals.includes(p));if(missing.length)complete=false;boxes.push(`<div class="coverage-card"><b>${ALL_DAYS[d]}</b><br>${missing.length?`⚠ Missing: ${missing.map(displayAssignment).join(", ")}`:`✓ ${positions.length} positions covered`}</div>`)}const streaks=minimumStreakViolations();if(streaks.length)boxes.push(`<div class="coverage-card"><b>2-Day Continuity Check</b><br>⚠ ${streaks.slice(0,5).join("<br>")}${streaks.length>5?`<br>+${streaks.length-5} more`:""}</div>`);document.getElementById("coverage").innerHTML=boxes.join("");showStatus(complete?(streaks.length?"Coverage is complete, but review the 2-day continuity warnings.":"Schedule complete. All required positions are covered."):"Some positions remain uncovered. Add qualified employees or external coverage.",complete&&!streaks.length)}
-function populateStaticDaySelectors(){["allocationStartDay","swapDay"].forEach(id=>{const s=document.getElementById(id);s.innerHTML=activeDays().map((d,i)=>`<option value="${i}">${d}</option>`).join("")})}function populateEmployeeSelectors(){const alloc=document.getElementById("allocationEmployee");alloc.innerHTML=employees.map((e,i)=>`<option value="${i}">${escapeHTML(e.name||e.id||`Employee ${i+1}`)}</option>`).join("");populateStaticDaySelectors()}
-function addOtherPlantAllocation(){const employeeIndex=parseInt(document.getElementById("allocationEmployee").value,10),startDay=parseInt(document.getElementById("allocationStartDay").value,10),days=parseInt(document.getElementById("allocationDays").value||"1",10);if(Number.isNaN(employeeIndex)||!employees[employeeIndex]){showStatus("Select an employee first.",false);return}const end=Math.min(activeDayCount(),startDay+days);for(let d=startDay;d<end;d++){employees[employeeIndex].otherPlant[d]=true;employees[employeeIndex].roff[d]=false;employees[employeeIndex].assignments[d]=""}otherPlantAllocations.push({employeeIndex,startDay,days:end-startDay});if(workCount(employees[employeeIndex])>maxWorkDays())showStatus("Warning: this other-plant allocation puts the employee over the selected weekly workday/hour limit.",false);render();if(scheduleGenerated)validateCoverage();saveData()}
-function removeAllocation(index){const a=otherPlantAllocations[index],e=employees[a.employeeIndex];if(e){for(let d=a.startDay;d<Math.min(7,a.startDay+a.days);d++)e.otherPlant[d]=false}otherPlantAllocations.splice(index,1);render();if(scheduleGenerated)validateCoverage();saveData()}
-function renderAllocations(){const panel=document.getElementById("allocationList");if(!otherPlantAllocations.length){panel.innerHTML='<span class="small">No employees currently allocated to another plant.</span>';return}panel.innerHTML=otherPlantAllocations.map((a,i)=>{const e=employees[a.employeeIndex];if(!e)return"";const end=Math.min(activeDayCount()-1,a.startDay+a.days-1);return `<div class="allocation-row"><b>${escapeHTML(e.name||e.id)}</b><span>${ALL_DAYS[a.startDay]}${end>a.startDay?` through ${ALL_DAYS[end]}`:""}</span><button class="red" onclick="removeAllocation(${i})">Remove</button></div>`}).join("")}
-function refreshSwapEmployees(){const day=parseInt(document.getElementById("swapDay").value||"0",10),options=employees.map((e,i)=>`<option value="${i}">${escapeHTML(e.name||e.id||`Employee ${i+1}`)} — ${displayAssignment(e.otherPlant[day]?"OTHER PLANT":e.roff[day]?"R/OFF":e.assignments[day]||"Blank")}</option>`).join("");document.getElementById("swapEmployeeA").innerHTML=options;document.getElementById("swapEmployeeB").innerHTML=options}
-function swapAssignments(){const d=parseInt(document.getElementById("swapDay").value,10),a=parseInt(document.getElementById("swapEmployeeA").value,10),b=parseInt(document.getElementById("swapEmployeeB").value,10);if(a===b){showSwapStatus("Select two different employees.",false);return}const ea=employees[a],eb=employees[b];if(!ea||!eb)return;if(ea.roff[d]||ea.otherPlant[d]||eb.roff[d]||eb.otherPlant[d]){showSwapStatus("R/OFF and OTHER PLANT employees cannot be swapped.",false);return}const aa=ea.assignments[d]||"OFF",ba=eb.assignments[d]||"OFF",force=document.getElementById("forceSwap").checked;if(!force&&((ba!=="OFF"&&!qualified(ea,ba))||(aa!=="OFF"&&!qualified(eb,aa)))){showSwapStatus("Swap blocked because one or both employees are not qualified. Use Manual Override only when approved.",false);return}ea.assignments[d]=ba;eb.assignments[d]=aa;render();validateCoverage();saveData();showSwapStatus(`Swapped ${ea.name} and ${eb.name} on ${ALL_DAYS[d]}.`,true)}function showSwapStatus(msg,ok){const s=document.getElementById("swapStatus");s.className="status "+(ok?"success":"warning");s.textContent=msg}
-function renderExternalPanel(){const panel=document.getElementById("externalEmployees");if(!externalEmployees.length){panel.innerHTML='<span class="small">No external employees currently required.</span>';return}panel.innerHTML=externalEmployees.map((e,i)=>{const assignments=e.assignments.map((a,d)=>a?`${ALL_DAYS[d]}: ${displayAssignment(a)}`:"").filter(Boolean).join(", ");return `<div class="external-row"><b>${assignments}</b><input placeholder="Employee Name" value="${escapeHTML(e.name)}" oninput="externalEmployees[${i}].name=this.value;renderSchedule();saveData()"><input placeholder="Employee ID" value="${escapeHTML(e.id)}" oninput="externalEmployees[${i}].id=this.value;renderSchedule();saveData()"><input placeholder="Skills" value="${escapeHTML(e.skills)}" oninput="externalEmployees[${i}].skills=this.value;saveData()"></div>`}).join("")}
-function renderSummary(){const panel=document.getElementById("employeeSummary");if(!employees.length){panel.innerHTML='<span class="small">No employees loaded.</span>';return}let html='<table><thead><tr><th>Employee</th><th>ID</th><th>This Plant Days</th><th>Other Plant Days</th><th>Total Work Days</th><th>Total Hours</th><th>R/OFF</th><th>Status</th></tr></thead><tbody>';employees.forEach(e=>{const local=localWorkCount(e),op=e.otherPlant.slice(0,activeDayCount()).filter(Boolean).length,total=workCount(e),roff=e.roff.slice(0,activeDayCount()).filter(Boolean).length;html+=`<tr><td>${escapeHTML(e.name)}</td><td>${escapeHTML(e.id)}</td><td>${local}</td><td>${op}</td><td>${total}</td><td>${total*8}</td><td>${roff}</td><td>${total>maxWorkDays()?"⚠ Over Limit":"OK"}</td></tr>`});panel.innerHTML=html+"</tbody></table>"}
-function buildScheduleText(){const days=activeDays(),header=["Employee Name","Employee ID",...days],rows=[...employees,...externalEmployees].map(e=>[e.name,e.id,...days.map((_,d)=>e.otherPlant[d]?"OTHER PLANT":e.roff[d]?"R/OFF":displayAssignment(e.assignments[d]||""))]);return[header,...rows].map(r=>r.join("\t")).join("\n")}
-async function copySchedule(){const text=buildScheduleText();try{if(navigator.clipboard&&window.isSecureContext){await navigator.clipboard.writeText(text);showStatus("Schedule copied. Open Excel and press Ctrl + V.",true);return}}catch(e){}const ta=document.createElement("textarea");ta.value=text;ta.style.position="fixed";ta.style.left="-9999px";document.body.appendChild(ta);ta.focus();ta.select();let ok=false;try{ok=document.execCommand("copy")}catch(e){}ta.remove();if(ok)showStatus("Schedule copied. Open Excel and press Ctrl + V.",true);else openCopySchedule()}
-function openCopySchedule(){closeCopyPopup();const overlay=document.createElement("div"),popup=document.createElement("div");overlay.id="copyOverlay";overlay.className="copy-popup-overlay";overlay.onclick=closeCopyPopup;popup.id="copyPopup";popup.className="copy-popup";popup.innerHTML='<h2>Copy Weekly Schedule</h2><p class="small">Click Select All, press Ctrl + C, then paste into Excel.</p><textarea id="manualCopyArea" readonly></textarea><div class="copy-popup-actions"><button onclick="selectScheduleText()">Select All</button><button onclick="copyFromPopup()">Copy Selected Schedule</button><button class="gray" onclick="closeCopyPopup()">Close</button></div>';document.body.append(overlay,popup);document.getElementById("manualCopyArea").value=buildScheduleText()}
-function selectScheduleText(){const a=document.getElementById("manualCopyArea");if(a){a.focus();a.select();a.setSelectionRange(0,a.value.length)}}async function copyFromPopup(){selectScheduleText();const a=document.getElementById("manualCopyArea");try{await navigator.clipboard.writeText(a.value);closeCopyPopup();showStatus("Schedule copied. Open Excel and press Ctrl + V.",true)}catch(e){document.execCommand("copy")}}function closeCopyPopup(){document.getElementById("copyOverlay")?.remove();document.getElementById("copyPopup")?.remove()}
-function csvEscape(v){v=String(v||"");return/[",\n]/.test(v)?`"${v.replace(/"/g,'""')}"`:v}function downloadCSV(){const rows=buildScheduleText().split("\n").map(r=>r.split("\t").map(csvEscape).join(",")).join("\r\n"),blob=new Blob(["\uFEFF"+rows],{type:"text/csv;charset=utf-8"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="Production_Weekly_Schedule.csv";document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url)}
-function clearAll(){if(!confirm("Clear everything? This erases names, IDs, skills, R/OFF, other-plant allocations, and the schedule."))return;employees=[];externalEmployees=[];otherPlantAllocations=[];scheduleGenerated=false;document.getElementById("pasteBox").value="";document.getElementById("coverage").innerHTML="";localStorage.removeItem("productionSchedulerV3");localStorage.removeItem("productionSchedulerV2");staffingRequirements=Array.from({length:7},()=>Array(13).fill(1));render();showStatus("Everything has been cleared. Paste a new employee list to begin.",true)}function showStatus(msg,ok){const s=document.getElementById("status");s.className="status "+(ok?"success":"warning");s.textContent=msg}
-function saveData(){const data={employees,externalEmployees,otherPlantAllocations,scheduleGenerated,weekStart:document.getElementById("weekStart").value,scheduleLength:document.getElementById("scheduleLength").value,maxWorkDays:document.getElementById("maxWorkDays").value,staffingRequirements,reworkCount:document.getElementById("reworkCount").value,allowExternal:document.getElementById("allowExternal").checked,maxExternal:document.getElementById("maxExternal").value,rotateMachines:document.getElementById("rotateMachines").checked};localStorage.setItem("productionSchedulerV3",JSON.stringify(data))}
-function loadSavedData(){const raw=localStorage.getItem("productionSchedulerV3")||localStorage.getItem("productionSchedulerV2");if(!raw)return;try{const d=JSON.parse(raw);employees=d.employees||[];externalEmployees=d.externalEmployees||[];otherPlantAllocations=d.otherPlantAllocations||[];scheduleGenerated=!!d.scheduleGenerated;if(Array.isArray(d.staffingRequirements))staffingRequirements=d.staffingRequirements;if(d.weekStart)document.getElementById("weekStart").value=d.weekStart;["scheduleLength","maxWorkDays","reworkCount","maxExternal"].forEach(id=>{if(d[id]!==undefined)document.getElementById(id).value=d[id]});if(d.allowExternal!==undefined)document.getElementById("allowExternal").checked=d.allowExternal;if(d.rotateMachines!==undefined)document.getElementById("rotateMachines").checked=d.rotateMachines}catch(e){console.log("Could not load saved schedule")}}
+function displayAssignment(slot){
+  if(!slot)return"";
+  const match=slot.match(/^(.*)-P(\d+)$/);
+  if(match)return `${match[1]} (P${match[2]})`;
+  if(slot.startsWith("REWORK-"))return `Rework ${slot.split("-")[1]}`;
+  return slot;
+}
+function baseSkill(slot){
+  if(!slot)return"";
+  if(slot.startsWith("REWORK"))return"REWORK";
+  const match=slot.match(/^(.*)-P\d+$/);
+  return (match?match[1]:slot).toUpperCase();
+}
+function normalizeStaffing(oldMachines=[]){
+  staffingRequirements=Array.from({length:7},(_,d)=>machines.map(m=>{
+    const oldIndex=oldMachines.indexOf(m);
+    return oldIndex>=0?(staffingRequirements[d]?.[oldIndex]??1):1;
+  }));
+}
+function requiredPositions(day){
+  const positions=[];
+  machines.forEach((m,mi)=>{
+    const count=Math.max(0,parseInt(staffingRequirements[day]?.[mi]??1,10));
+    for(let p=1;p<=count;p++)positions.push(`${m}-P${p}`);
+  });
+  for(let r=1;r<=reworkCount();r++)positions.push(`REWORK-${r}`);
+  return positions;
+}
+function initialize(){
+  const today=new Date(),dow=today.getDay(),diff=dow===0?-6:1-dow;
+  today.setDate(today.getDate()+diff);
+  document.getElementById("weekStart").value=today.toISOString().slice(0,10);
+  loadSavedData();
+  document.getElementById("machineList").value=machines.join(", ");
+  render();
+}
+document.getElementById("weekStart").addEventListener("change",()=>{render();saveData()});
+function settingsChanged(){render();saveData()}
+
+function generateMachineRange(){
+  const start=parseInt(document.getElementById("machineStart").value,10);
+  const end=parseInt(document.getElementById("machineEnd").value,10);
+  const prefix=document.getElementById("machinePrefix").value.trim().toUpperCase();
+  const suffix=document.getElementById("machineSuffix").value.trim().toUpperCase();
+  if(Number.isNaN(start)||Number.isNaN(end)||end<start){showStatus("Enter a valid machine number range.",false);return}
+  const list=[];for(let n=start;n<=end;n++)list.push(`${prefix}${n}${suffix}`);
+  document.getElementById("machineList").value=list.join(", ");
+  document.getElementById("machineResult").textContent=`Preview: ${list.join(", ")}`;
+}
+function applyMachineList(){
+  const raw=document.getElementById("machineList").value;
+  const list=[...new Set(raw.split(/[\n,;]+/).map(x=>x.trim().toUpperCase()).filter(Boolean))];
+  if(!list.length){showStatus("Enter at least one machine.",false);return}
+  if(scheduleGenerated&&!confirm("Changing the machine list may invalidate the current schedule. Continue?"))return;
+  const old=[...machines];machines=list;normalizeStaffing(old);
+  employees.forEach(e=>e.assignments=e.assignments.map(a=>{
+    if(!a||a==="OFF"||a.startsWith("REWORK"))return a;
+    return machines.includes(baseSkill(a))?a:"OFF";
+  }));
+  externalEmployees=[];
+  document.getElementById("machineResult").textContent=`Applied ${machines.length} machines.`;
+  render();if(scheduleGenerated)validateCoverage();saveData()
+}
+function resetMachines(){
+  document.getElementById("machineStart").value=1;document.getElementById("machineEnd").value=13;
+  document.getElementById("machinePrefix").value="B";document.getElementById("machineSuffix").value="";
+  document.getElementById("machineList").value=Array.from({length:13},(_,i)=>`B${i+1}`).join(", ");
+  applyMachineList()
+}
+
+function parseEmployees(text){
+  return text.trim().split(/\r?\n/).filter(x=>x.trim()).map(line=>{
+    let parts=line.split("\t");if(parts.length<2)parts=line.split(",");
+    return createEmployee((parts[0]||"").trim(),(parts[1]||"").trim())
+  }).filter(e=>e.name||e.id)
+}
+function loadEmployees(){
+  const text=document.getElementById("pasteBox").value.trim();
+  if(!text){showStatus("Please paste employee names and IDs first.",false);return}
+  employees=parseEmployees(text);externalEmployees=[];otherPlantAllocations=[];scheduleGenerated=false;
+  render();saveData();showStatus(`${employees.length} employees loaded.`,true)
+}
+function addEmployee(){employees.push(createEmployee());render();saveData()}
+function removeEmployee(i){
+  if(!confirm(`Remove ${employees[i].name||"this employee"}?`))return;
+  employees.splice(i,1);
+  otherPlantAllocations=otherPlantAllocations.filter(a=>a.employeeIndex!==i).map(a=>({...a,employeeIndex:a.employeeIndex>i?a.employeeIndex-1:a.employeeIndex}));
+  render();saveData()
+}
+function getDisplayDate(index){
+  const base=document.getElementById("weekStart").value;if(!base)return"";
+  const d=new Date(base+"T12:00:00");d.setDate(d.getDate()+index);
+  return d.toLocaleDateString(undefined,{month:"short",day:"numeric"})
+}
+function render(){
+  renderStaffingTable();renderEmployeeSetup();renderSchedule();renderAllocations();
+  renderExternalPanel();renderSummary();populateEmployeeSelectors();refreshSwapEmployees()
+}
+function renderStaffingTable(){
+  const days=activeDays(),table=document.getElementById("staffingTable");
+  table.querySelector("thead").innerHTML=`<tr><th>Machine</th>${days.map((d,i)=>`<th>${d}<br><span class="small">${getDisplayDate(i)}</span></th>`).join("")}</tr>`;
+  table.querySelector("tbody").innerHTML=machines.map((m,mi)=>`<tr><th>${escapeHTML(m)}</th>${days.map((_,d)=>`<td><input type="number" min="0" max="10" value="${staffingRequirements[d]?.[mi]??1}" onchange="updateStaffing(${d},${mi},this.value)"></td>`).join("")}</tr>`).join("")
+}
+function updateStaffing(day,mi,value){
+  staffingRequirements[day][mi]=Math.max(0,Math.min(10,parseInt(value||"0",10)));
+  if(scheduleGenerated)showStatus("Staffing changed. Use Rebalance to fill vacancies or Generate New Schedule to rebuild everything.",false);
+  saveData()
+}
+function setAllStaffing(value){
+  for(let d=0;d<activeDayCount();d++)for(let m=0;m<machines.length;m++)staffingRequirements[d][m]=value;
+  renderStaffingTable();saveData()
+}
+function renderEmployeeSetup(){
+  const body=document.querySelector("#employeeSetupTable tbody");body.innerHTML="";
+  employees.forEach((e,i)=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML=`<td>${i+1}</td>
+    <td><input class="employee-input" value="${escapeHTML(e.name)}" oninput="employees[${i}].name=this.value;renderSchedule();populateEmployeeSelectors();saveData()"></td>
+    <td><input class="employee-input" value="${escapeHTML(e.id)}" oninput="employees[${i}].id=this.value;renderSchedule();saveData()"></td>
+    <td><input class="employee-input" value="${escapeHTML(e.skills||"ALL")}" placeholder="ALL or ${escapeHTML(machines.slice(0,3).join(","))},REWORK" oninput="employees[${i}].skills=this.value;saveData()"></td>
+    <td><button class="red" onclick="removeEmployee(${i})">Remove</button></td>`;
+    body.appendChild(tr)
+  })
+}
+function renderSchedule(){
+  const days=activeDays(),table=document.getElementById("scheduleTable"),thead=table.querySelector("thead"),tbody=table.querySelector("tbody");
+  thead.innerHTML=`<tr><th>S.N.</th><th>Employee Name</th><th>Employee ID</th>${days.map((d,i)=>`<th>${d}<br><span class="small">${getDisplayDate(i)}</span></th>`).join("")}</tr>`;
+  tbody.innerHTML="";
+  [...employees,...externalEmployees].forEach((e,rowIndex)=>{
+    const isExternal=rowIndex>=employees.length,idx=isExternal?rowIndex-employees.length:rowIndex;
+    let cells="";
+    for(let d=0;d<days.length;d++){
+      let value="",css="day-cell";
+      if(e.otherPlant[d]){value="OTHER PLANT";css+=" other-plant"}
+      else if(e.roff[d]){value="R/OFF";css+=" roff"}
+      else{
+        value=e.assignments[d]||"";
+        if(value==="OFF")css+=" off";else if(value.startsWith("REWORK"))css+=" rework";else if(value)css+=" machine"
+      }
+      if(isExternal)css+=" external";
+      const click=isExternal||e.otherPlant[d]?"":`onclick="toggleRoff(${idx},${d})"`;
+      cells+=`<td class="${css}" ${click}>${escapeHTML(displayAssignment(value))}</td>`
+    }
+    const tr=document.createElement("tr");
+    tr.innerHTML=`<td>${rowIndex+1}</td><td class="employee-name">${escapeHTML(e.name)}</td><td class="employee-id">${escapeHTML(e.id)}</td>${cells}`;
+    tbody.appendChild(tr)
+  })
+}
+function toggleRoff(i,d){
+  const e=employees[i];if(e.otherPlant[d])return;
+  e.roff[d]=!e.roff[d];e.assignments[d]=e.roff[d]?"":(scheduleGenerated?"OFF":"");
+  render();if(scheduleGenerated)validateCoverage();saveData()
+}
+function qualified(e,slot){
+  const skills=(e.skills||"ALL").toUpperCase().split(/[,;\s]+/).filter(Boolean);
+  return skills.includes("ALL")||skills.includes(baseSkill(slot))
+}
+function localWorkCount(e){return e.assignments.slice(0,activeDayCount()).filter(a=>a&&a!=="OFF").length}
+function otherPlantCount(e){return e.otherPlant.slice(0,activeDayCount()).filter(Boolean).length}
+function workCount(e){return localWorkCount(e)+otherPlantCount(e)}
+function streakBefore(e,day){
+  let c=0;for(let i=day-1;i>=0;i--){if(e.otherPlant[i]||(e.assignments[i]&&e.assignments[i]!=="OFF"))c++;else break}return c
+}
+function machineCount(e,slot){const b=baseSkill(slot);return e.assignments.filter(a=>baseSkill(a)===b).length}
+function chooseEmployee(day,slot){
+  const candidates=employees.filter(e=>!e.roff[day]&&!e.otherPlant[day]&&(!e.assignments[day]||e.assignments[day]==="OFF")&&workCount(e)<maxWorkDays()&&qualified(e,slot));
+  candidates.sort((a,b)=>{
+    const as=streakBefore(a,day),bs=streakBefore(b,day);
+    if(as===1&&bs!==1)return-1;if(bs===1&&as!==1)return 1;
+    if(workCount(a)!==workCount(b))return workCount(a)-workCount(b);
+    if(document.getElementById("rotateMachines").checked){
+      const am=machineCount(a,slot),bm=machineCount(b,slot);if(am!==bm)return am-bm
+    }
+    return a.name.localeCompare(b.name)
+  });
+  return candidates[0]||null
+}
+function createExternalAssignment(day,slot){
+  const ext=createEmployee("External Employee","EXT");ext.external=true;ext.assignments[day]=slot;externalEmployees.push(ext)
+}
+function confirmGenerateSchedule(){
+  const message=scheduleGenerated
+    ?"Generate a new schedule?\n\nThis will erase the current assignments and all manual changes. R/OFF and Other Plant selections will be kept."
+    :"Generate a new schedule now?";
+  if(confirm(message))generateSchedule()
+}
+function generateSchedule(){
+  if(!employees.length){showStatus("Please load employees first.",false);return}
+  externalEmployees=[];employees.forEach(e=>e.assignments=Array(7).fill(""));
+  const allow=document.getElementById("allowExternal").checked,maxExt=parseInt(document.getElementById("maxExternal").value||"0",10);
+  for(let d=0;d<activeDayCount();d++){
+    requiredPositions(d).forEach(slot=>{
+      const e=chooseEmployee(d,slot);
+      if(e)e.assignments[d]=slot;
+      else if(allow&&externalEmployees.filter(x=>x.assignments[d]).length<maxExt)createExternalAssignment(d,slot)
+    });
+    employees.forEach(e=>{if(e.roff[d]||e.otherPlant[d])e.assignments[d]="";else if(!e.assignments[d])e.assignments[d]="OFF"})
+  }
+  scheduleGenerated=true;render();validateCoverage();saveData()
+}
+function rebalanceSchedule(){
+  if(!scheduleGenerated){showStatus("Generate a schedule first.",false);return}
+  externalEmployees=[];
+  const allow=document.getElementById("allowExternal").checked,maxExt=parseInt(document.getElementById("maxExternal").value||"0",10);
+  for(let d=0;d<activeDayCount();d++){
+    const valid=new Set(requiredPositions(d)),occupied=new Set();
+    employees.forEach(e=>{
+      if(e.roff[d]||e.otherPlant[d])e.assignments[d]="";
+      else if(e.assignments[d]&&e.assignments[d]!=="OFF"){
+        if(valid.has(e.assignments[d])&&!occupied.has(e.assignments[d]))occupied.add(e.assignments[d]);
+        else e.assignments[d]="OFF"
+      }
+    });
+    requiredPositions(d).filter(p=>!occupied.has(p)).forEach(slot=>{
+      const e=chooseEmployee(d,slot);
+      if(e)e.assignments[d]=slot;
+      else if(allow&&externalEmployees.filter(x=>x.assignments[d]).length<maxExt)createExternalAssignment(d,slot)
+    });
+    employees.forEach(e=>{if(!e.roff[d]&&!e.otherPlant[d]&&!e.assignments[d])e.assignments[d]="OFF"})
+  }
+  render();validateCoverage();saveData()
+}
+function minimumStreakViolations(){
+  const out=[];
+  employees.forEach(e=>{
+    for(let d=0;d<activeDayCount();d++){
+      const worked=e.otherPlant[d]||(e.assignments[d]&&e.assignments[d]!=="OFF");
+      if(!worked)continue;
+      const prev=d>0&&(e.otherPlant[d-1]||(e.assignments[d-1]&&e.assignments[d-1]!=="OFF"));
+      const next=d<activeDayCount()-1&&(e.otherPlant[d+1]||(e.assignments[d+1]&&e.assignments[d+1]!=="OFF"));
+      if(!prev&&!next)out.push(`${e.name||e.id}: isolated workday on ${ALL_DAYS[d]}`)
+    }
+  });return out
+}
+function validateCoverage(){
+  const cards=[];let complete=true;
+  for(let d=0;d<activeDayCount();d++){
+    const vals=[];
+    employees.forEach(e=>{if(!e.roff[d]&&!e.otherPlant[d]&&e.assignments[d]&&e.assignments[d]!=="OFF")vals.push(e.assignments[d])});
+    externalEmployees.forEach(e=>{if(e.assignments[d])vals.push(e.assignments[d])});
+    const req=requiredPositions(d),missing=req.filter(p=>!vals.includes(p));
+    if(missing.length)complete=false;
+    cards.push(`<div class="coverage-card"><b>${ALL_DAYS[d]}</b><br>${missing.length?`⚠ Missing: ${missing.map(displayAssignment).join(", ")}`:`✓ ${req.length} positions covered`}</div>`)
+  }
+  const streaks=minimumStreakViolations();
+  if(streaks.length)cards.push(`<div class="coverage-card"><b>2-Day Continuity</b><br>⚠ ${streaks.slice(0,6).join("<br>")}${streaks.length>6?`<br>+${streaks.length-6} more`:""}</div>`);
+  document.getElementById("coverage").innerHTML=cards.join("");
+  showStatus(complete?(streaks.length?"Coverage is complete. Review continuity warnings.":"Schedule complete. All required positions are covered."):"Some required positions remain uncovered.",complete&&!streaks.length)
+}
+function populateDaySelect(id){
+  const s=document.getElementById(id),old=s.value;s.innerHTML=activeDays().map((d,i)=>`<option value="${i}">${d}</option>`).join("");
+  if([...s.options].some(o=>o.value===old))s.value=old
+}
+function populateEmployeeSelectors(){
+  document.getElementById("allocationEmployee").innerHTML=employees.map((e,i)=>`<option value="${i}">${escapeHTML(e.name||e.id||`Employee ${i+1}`)}</option>`).join("");
+  populateDaySelect("allocationStartDay");populateDaySelect("swapDay")
+}
+function addOtherPlantAllocation(){
+  const employeeIndex=parseInt(document.getElementById("allocationEmployee").value,10);
+  const startDay=parseInt(document.getElementById("allocationStartDay").value,10);
+  const days=parseInt(document.getElementById("allocationDays").value||"1",10);
+  if(Number.isNaN(employeeIndex)||!employees[employeeIndex]){showStatus("Select an employee first.",false);return}
+  const end=Math.min(activeDayCount(),startDay+days);
+  for(let d=startDay;d<end;d++){employees[employeeIndex].otherPlant[d]=true;employees[employeeIndex].roff[d]=false;employees[employeeIndex].assignments[d]=""}
+  otherPlantAllocations.push({employeeIndex,startDay,days:end-startDay});
+  render();if(scheduleGenerated)validateCoverage();saveData()
+}
+function removeAllocation(index){
+  const a=otherPlantAllocations[index],e=employees[a.employeeIndex];
+  if(e)for(let d=a.startDay;d<Math.min(7,a.startDay+a.days);d++)e.otherPlant[d]=false;
+  otherPlantAllocations.splice(index,1);render();if(scheduleGenerated)validateCoverage();saveData()
+}
+function renderAllocations(){
+  const panel=document.getElementById("allocationList");
+  if(!otherPlantAllocations.length){panel.innerHTML='<span class="small">No employees currently allocated to another plant.</span>';return}
+  panel.innerHTML=otherPlantAllocations.map((a,i)=>{
+    const e=employees[a.employeeIndex];if(!e)return"";
+    const end=Math.min(activeDayCount()-1,a.startDay+a.days-1);
+    return `<div class="allocation-row"><b>${escapeHTML(e.name||e.id)}</b><span>${ALL_DAYS[a.startDay]}${end>a.startDay?` through ${ALL_DAYS[end]}`:""}</span><button class="red" onclick="removeAllocation(${i})">Remove</button></div>`
+  }).join("")
+}
+function refreshSwapEmployees(){
+  const day=parseInt(document.getElementById("swapDay").value||"0",10);
+  const options=employees.map((e,i)=>`<option value="${i}">${escapeHTML(e.name||e.id||`Employee ${i+1}`)} — ${displayAssignment(e.otherPlant[day]?"OTHER PLANT":e.roff[day]?"R/OFF":e.assignments[day]||"Blank")}</option>`).join("");
+  document.getElementById("swapEmployeeA").innerHTML=options;document.getElementById("swapEmployeeB").innerHTML=options
+}
+function swapAssignments(){
+  const d=parseInt(document.getElementById("swapDay").value,10),a=parseInt(document.getElementById("swapEmployeeA").value,10),b=parseInt(document.getElementById("swapEmployeeB").value,10);
+  if(a===b){showSwapStatus("Select two different employees.",false);return}
+  const ea=employees[a],eb=employees[b];if(!ea||!eb)return;
+  if(ea.roff[d]||ea.otherPlant[d]||eb.roff[d]||eb.otherPlant[d]){showSwapStatus("R/OFF and OTHER PLANT employees cannot be swapped.",false);return}
+  const aa=ea.assignments[d]||"OFF",ba=eb.assignments[d]||"OFF",force=document.getElementById("forceSwap").checked;
+  if(!force&&((ba!=="OFF"&&!qualified(ea,ba))||(aa!=="OFF"&&!qualified(eb,aa)))){showSwapStatus("Swap blocked because one or both employees are not qualified.",false);return}
+  ea.assignments[d]=ba;eb.assignments[d]=aa;render();validateCoverage();saveData();showSwapStatus(`Swapped ${ea.name} and ${eb.name} on ${ALL_DAYS[d]}.`,true)
+}
+function showSwapStatus(msg,ok){const s=document.getElementById("swapStatus");s.className="status "+(ok?"success":"warning");s.textContent=msg}
+function renderExternalPanel(){
+  const panel=document.getElementById("externalEmployees");
+  if(!externalEmployees.length){panel.innerHTML='<span class="small">No external employees currently required.</span>';return}
+  panel.innerHTML=externalEmployees.map((e,i)=>{
+    const a=e.assignments.map((x,d)=>x?`${ALL_DAYS[d]}: ${displayAssignment(x)}`:"").filter(Boolean).join(", ");
+    return `<div class="external-row"><b>${a}</b><input placeholder="Employee Name" value="${escapeHTML(e.name)}" oninput="externalEmployees[${i}].name=this.value;renderSchedule();saveData()"><input placeholder="Employee ID" value="${escapeHTML(e.id)}" oninput="externalEmployees[${i}].id=this.value;renderSchedule();saveData()"></div>`
+  }).join("")
+}
+function renderSummary(){
+  const panel=document.getElementById("employeeSummary");
+  if(!employees.length){panel.innerHTML='<span class="small">No employees loaded.</span>';return}
+  let html='<table><thead><tr><th>Employee</th><th>ID</th><th>This Plant</th><th>Other Plant</th><th>Total Days</th><th>Total Hours</th><th>R/OFF</th><th>Status</th></tr></thead><tbody>';
+  employees.forEach(e=>{
+    const local=localWorkCount(e),other=otherPlantCount(e),total=local+other,roff=e.roff.slice(0,activeDayCount()).filter(Boolean).length;
+    html+=`<tr><td>${escapeHTML(e.name)}</td><td>${escapeHTML(e.id)}</td><td>${local}</td><td>${other}</td><td>${total}</td><td>${total*8}</td><td>${roff}</td><td>${total>maxWorkDays()?"⚠ Over Limit":"OK"}</td></tr>`
+  });
+  panel.innerHTML=html+"</tbody></table>"
+}
+function buildScheduleText(){
+  const days=activeDays(),header=["Employee Name","Employee ID",...days];
+  const rows=[...employees,...externalEmployees].map(e=>[e.name,e.id,...days.map((_,d)=>e.otherPlant[d]?"OTHER PLANT":e.roff[d]?"R/OFF":displayAssignment(e.assignments[d]||""))]);
+  return[header,...rows].map(r=>r.join("\t")).join("\n")
+}
+async function copySchedule(){
+  const text=buildScheduleText();
+  try{if(navigator.clipboard&&window.isSecureContext){await navigator.clipboard.writeText(text);showStatus("Schedule copied. Open Excel and press Ctrl + V.",true);return}}catch(e){}
+  const ta=document.createElement("textarea");ta.value=text;ta.style.position="fixed";ta.style.left="-9999px";document.body.appendChild(ta);ta.focus();ta.select();
+  let ok=false;try{ok=document.execCommand("copy")}catch(e){}ta.remove();
+  if(ok)showStatus("Schedule copied. Open Excel and press Ctrl + V.",true);else openCopySchedule()
+}
+function openCopySchedule(){
+  closeCopyPopup();const overlay=document.createElement("div"),popup=document.createElement("div");
+  overlay.id="copyOverlay";overlay.className="copy-popup-overlay";overlay.onclick=closeCopyPopup;
+  popup.id="copyPopup";popup.className="copy-popup";
+  popup.innerHTML='<h2>Copy Weekly Schedule</h2><p class="small">Click Select All, press Ctrl + C, then paste into Excel.</p><textarea id="manualCopyArea" readonly></textarea><div class="copy-popup-actions"><button onclick="selectScheduleText()">Select All</button><button onclick="copyFromPopup()">Copy Selected Schedule</button><button class="gray" onclick="closeCopyPopup()">Close</button></div>';
+  document.body.append(overlay,popup);document.getElementById("manualCopyArea").value=buildScheduleText()
+}
+function selectScheduleText(){const a=document.getElementById("manualCopyArea");if(a){a.focus();a.select();a.setSelectionRange(0,a.value.length)}}
+async function copyFromPopup(){selectScheduleText();const a=document.getElementById("manualCopyArea");try{await navigator.clipboard.writeText(a.value);closeCopyPopup();showStatus("Schedule copied.",true)}catch(e){document.execCommand("copy")}}
+function closeCopyPopup(){document.getElementById("copyOverlay")?.remove();document.getElementById("copyPopup")?.remove()}
+function csvEscape(v){v=String(v||"");return/[",\n]/.test(v)?`"${v.replace(/"/g,'""')}"`:v}
+function downloadCSV(){
+  const rows=buildScheduleText().split("\n").map(r=>r.split("\t").map(csvEscape).join(",")).join("\r\n");
+  const blob=new Blob(["\uFEFF"+rows],{type:"text/csv;charset=utf-8"}),url=URL.createObjectURL(blob),a=document.createElement("a");
+  a.href=url;a.download="Production_Weekly_Schedule.csv";document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url)
+}
+function clearAll(){
+  if(!confirm("Clear everything? This erases names, IDs, skills, R/OFF, Other Plant allocations, staffing requirements, and the schedule."))return;
+  employees=[];externalEmployees=[];otherPlantAllocations=[];scheduleGenerated=false;
+  machines=Array.from({length:13},(_,i)=>`B${i+1}`);staffingRequirements=Array.from({length:7},()=>Array(machines.length).fill(1));
+  document.getElementById("pasteBox").value="";document.getElementById("machineList").value=machines.join(", ");document.getElementById("coverage").innerHTML="";
+  localStorage.removeItem("productionSchedulerV4");render();showStatus("Everything has been cleared.",true)
+}
+function showStatus(msg,ok){const s=document.getElementById("status");s.className="status "+(ok?"success":"warning");s.textContent=msg}
+function saveData(){
+  const data={machines,staffingRequirements,employees,externalEmployees,otherPlantAllocations,scheduleGenerated,
+    weekStart:document.getElementById("weekStart").value,scheduleLength:document.getElementById("scheduleLength").value,
+    maxWorkDays:document.getElementById("maxWorkDays").value,reworkCount:document.getElementById("reworkCount").value,
+    allowExternal:document.getElementById("allowExternal").checked,maxExternal:document.getElementById("maxExternal").value,
+    rotateMachines:document.getElementById("rotateMachines").checked};
+  localStorage.setItem("productionSchedulerV4",JSON.stringify(data))
+}
+function loadSavedData(){
+  const raw=localStorage.getItem("productionSchedulerV4");if(!raw)return;
+  try{
+    const d=JSON.parse(raw);
+    machines=Array.isArray(d.machines)&&d.machines.length?d.machines:machines;
+    staffingRequirements=Array.isArray(d.staffingRequirements)?d.staffingRequirements:Array.from({length:7},()=>Array(machines.length).fill(1));
+    employees=d.employees||[];externalEmployees=d.externalEmployees||[];otherPlantAllocations=d.otherPlantAllocations||[];scheduleGenerated=!!d.scheduleGenerated;
+    if(d.weekStart)document.getElementById("weekStart").value=d.weekStart;
+    ["scheduleLength","maxWorkDays","reworkCount","maxExternal"].forEach(id=>{if(d[id]!==undefined)document.getElementById(id).value=d[id]});
+    if(d.allowExternal!==undefined)document.getElementById("allowExternal").checked=d.allowExternal;
+    if(d.rotateMachines!==undefined)document.getElementById("rotateMachines").checked=d.rotateMachines
+  }catch(e){console.log("Could not load saved data")}
+}
 initialize();
 </script>
 </body>
