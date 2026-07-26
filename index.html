@@ -95,7 +95,7 @@ th{background:var(--light-blue);position:sticky;top:0;z-index:2}
 <label>Rework employees/day: <input type="number" id="reworkCount" value="1" min="0" max="20" onchange="settingsChanged()"></label>
 <label><input type="checkbox" id="allowExternal" checked onchange="settingsChanged()"> Allow external employees</label>
 <label>Max external/day: <input type="number" id="maxExternal" value="30" min="0" max="100" onchange="settingsChanged()"></label>
-<label><input type="checkbox" id="rotateMachines" checked onchange="settingsChanged()"> Rotate assignments</label>
+<label><input type="checkbox" id="rotateMachines" checked onchange="settingsChanged()"> Randomize and rotate assignments</label>
 </div>
 <p class="small">Other Plant days count as 8 hours and toward the selected weekly workday limit.</p>
 </div>
@@ -375,18 +375,52 @@ function streakBefore(e,day){
   let c=0;for(let i=day-1;i>=0;i--){if(e.otherPlant[i]||(e.assignments[i]&&e.assignments[i]!=="OFF"))c++;else break}return c
 }
 function machineCount(e,slot){const b=baseSkill(slot);return e.assignments.filter(a=>baseSkill(a)===b).length}
+function shuffleArray(items){
+  const a=[...items];
+  for(let i=a.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [a[i],a[j]]=[a[j],a[i]];
+  }
+  return a;
+}
+function consecutiveNonWorkBefore(e,day){
+  let count=0;
+  for(let d=day-1;d>=0;d--){
+    const worked=e.otherPlant[d]||(e.assignments[d]&&e.assignments[d]!=="OFF");
+    if(worked)break;
+    count++;
+  }
+  return count;
+}
 function chooseEmployee(day,slot){
-  const candidates=employees.filter(e=>!e.roff[day]&&!e.otherPlant[day]&&(!e.assignments[day]||e.assignments[day]==="OFF")&&workCount(e)<maxWorkDays()&&qualified(e,slot));
+  const candidates=shuffleArray(employees.filter(e=>
+    !e.roff[day] &&
+    !e.otherPlant[day] &&
+    (!e.assignments[day]||e.assignments[day]==="OFF") &&
+    workCount(e)<maxWorkDays() &&
+    qualified(e,slot)
+  ));
+
   candidates.sort((a,b)=>{
     const as=streakBefore(a,day),bs=streakBefore(b,day);
-    if(as===1&&bs!==1)return-1;if(bs===1&&as!==1)return 1;
+
+    if(as===1&&bs!==1)return-1;
+    if(bs===1&&as!==1)return 1;
+
+    const ao=consecutiveNonWorkBefore(a,day),bo=consecutiveNonWorkBefore(b,day);
+    if(ao!==bo)return bo-ao;
+
     if(workCount(a)!==workCount(b))return workCount(a)-workCount(b);
+
     if(document.getElementById("rotateMachines").checked){
-      const am=machineCount(a,slot),bm=machineCount(b,slot);if(am!==bm)return am-bm
+      const am=machineCount(a,slot),bm=machineCount(b,slot);
+      if(am!==bm)return am-bm;
     }
-    return a.name.localeCompare(b.name)
+
+    return 0;
   });
-  return candidates[0]||null
+
+  return candidates[0]||null;
 }
 function createExternalAssignment(day,slot){
   const ext=createEmployee("External Employee","EXT");ext.external=true;ext.assignments[day]=slot;externalEmployees.push(ext)
@@ -406,7 +440,7 @@ function generateSchedule(){
   });
   const allow=document.getElementById("allowExternal").checked,maxExt=parseInt(document.getElementById("maxExternal").value||"0",10);
   for(let d=0;d<activeDayCount();d++){
-    requiredPositions(d).forEach(slot=>{
+    shuffleArray(requiredPositions(d)).forEach(slot=>{
       const e=chooseEmployee(d,slot);
       if(e)e.assignments[d]=slot;
       else if(allow&&externalEmployees.filter(x=>x.assignments[d]).length<maxExt)createExternalAssignment(d,slot)
@@ -428,7 +462,7 @@ function rebalanceSchedule(){
         else e.assignments[d]="OFF"
       }
     });
-    requiredPositions(d).filter(p=>!occupied.has(p)).forEach(slot=>{
+    shuffleArray(requiredPositions(d).filter(p=>!occupied.has(p))).forEach(slot=>{
       const e=chooseEmployee(d,slot);
       if(e)e.assignments[d]=slot;
       else if(allow&&externalEmployees.filter(x=>x.assignments[d]).length<maxExt)createExternalAssignment(d,slot)
