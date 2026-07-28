@@ -97,7 +97,7 @@ th{background:var(--light-blue);position:sticky;top:0;z-index:2}
 <label>Max external/day: <input type="number" id="maxExternal" value="30" min="0" max="100" onchange="settingsChanged()"></label>
 <label><input type="checkbox" id="rotateMachines" checked onchange="settingsChanged()"> Randomize and rotate assignments</label>
 </div>
-<p class="small">Other Plant days count as 8 hours and toward the selected weekly workday limit.</p>
+<p class="small">Other Plant days count as 8 hours. When R/OFF causes a shortage, available internal employees are assigned first, including overtime, before external employees are used.</p>
 </div>
 
 <div class="card">
@@ -122,10 +122,15 @@ th{background:var(--light-blue);position:sticky;top:0;z-index:2}
 </div>
 
 <div class="card">
-<h2>6. Allocate Employees to Other Plants</h2>
+<h2>6. Allocate Employees to EBM2 or Plant 6</h2>
 <p class="small">Other Plant days are excluded from this plant’s assignments but count as 8 work hours per day.</p>
 <div class="controls">
 <label>Employee: <select id="allocationEmployee"></select></label>
+<label>Location:
+<select id="allocationPlant">
+<option value="EBM2">EBM2</option>
+<option value="Plant 6">Plant 6</option>
+</select></label>
 <label>Start day: <select id="allocationStartDay"></select></label>
 <label>Number of days: <input type="number" id="allocationDays" value="1" min="1" max="7"></label>
 <button onclick="addOtherPlantAllocation()">Allocate to Other Plant</button>
@@ -187,7 +192,7 @@ function activeDays(){return ALL_DAYS.slice(0,activeDayCount())}
 function maxWorkDays(){return parseInt(document.getElementById("maxWorkDays").value||"5",10)}
 function reworkCount(){return parseInt(document.getElementById("reworkCount").value||"1",10)}
 function escapeHTML(t){return String(t||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]))}
-function createEmployee(name="",id=""){return{name,id,skills:"ALL",roff:Array(7).fill(false),otherPlant:Array(7).fill(false),assignments:Array(7).fill(""),cellCycle:Array(7).fill(0),originalAssignments:Array(7).fill(""),external:false}}
+function createEmployee(name="",id=""){return{name,id,skills:"ALL",roff:Array(7).fill(false),otherPlant:Array(7).fill(false),otherPlantLocation:Array(7).fill(""),assignments:Array(7).fill(""),cellCycle:Array(7).fill(0),originalAssignments:Array(7).fill(""),external:false}}
 function displayAssignment(slot){
   if(!slot)return"";
   const match=slot.match(/^(.*)-P\d+$/);
@@ -321,7 +326,7 @@ function renderSchedule(){
     let cells="";
     for(let d=0;d<days.length;d++){
       let value="",css="day-cell";
-      if(e.otherPlant[d]){value="OTHER PLANT";css+=" other-plant"}
+      if(e.otherPlant[d]){value=e.otherPlantLocation?.[d]?`OTHER PLANT - ${e.otherPlantLocation[d]}`:"OTHER PLANT";css+=" other-plant"}
       else if(e.roff[d]){value="R/OFF";css+=" roff"}
       else{
         value=e.assignments[d]||"";
@@ -342,6 +347,7 @@ function toggleRoff(i,d){
 
   if(!Array.isArray(e.cellCycle))e.cellCycle=Array(7).fill(0);
   if(!Array.isArray(e.originalAssignments))e.originalAssignments=Array(7).fill("");
+      if(!Array.isArray(e.otherPlantLocation))e.otherPlantLocation=Array(7).fill("");
 
   const state=e.cellCycle[d]||0;
 
@@ -392,18 +398,9 @@ function consecutiveNonWorkBefore(e,day){
   }
   return count;
 }
-function chooseEmployee(day,slot){
-  const candidates=shuffleArray(employees.filter(e=>
-    !e.roff[day] &&
-    !e.otherPlant[day] &&
-    (!e.assignments[day]||e.assignments[day]==="OFF") &&
-    workCount(e)<maxWorkDays() &&
-    qualified(e,slot)
-  ));
-
+function rankCandidates(candidates,day,slot){
   candidates.sort((a,b)=>{
     const as=streakBefore(a,day),bs=streakBefore(b,day);
-
     if(as===1&&bs!==1)return-1;
     if(bs===1&&as!==1)return 1;
 
@@ -416,11 +413,19 @@ function chooseEmployee(day,slot){
       const am=machineCount(a,slot),bm=machineCount(b,slot);
       if(am!==bm)return am-bm;
     }
-
     return 0;
   });
-
-  return candidates[0]||null;
+  return candidates;
+}
+function chooseEmployee(day,slot,allowOvertime=false){
+  const candidates=shuffleArray(employees.filter(e=>
+    !e.roff[day] &&
+    !e.otherPlant[day] &&
+    (!e.assignments[day]||e.assignments[day]==="OFF") &&
+    (allowOvertime || workCount(e)<maxWorkDays()) &&
+    qualified(e,slot)
+  ));
+  return rankCandidates(candidates,day,slot)[0]||null;
 }
 function createExternalAssignment(day,slot){
   const ext=createEmployee("External Employee","EXT");ext.external=true;ext.assignments[day]=slot;externalEmployees.push(ext)
@@ -441,7 +446,8 @@ function generateSchedule(){
   const allow=document.getElementById("allowExternal").checked,maxExt=parseInt(document.getElementById("maxExternal").value||"0",10);
   for(let d=0;d<activeDayCount();d++){
     shuffleArray(requiredPositions(d)).forEach(slot=>{
-      const e=chooseEmployee(d,slot);
+      let e=chooseEmployee(d,slot,false);
+      if(!e)e=chooseEmployee(d,slot,true);
       if(e)e.assignments[d]=slot;
       else if(allow&&externalEmployees.filter(x=>x.assignments[d]).length<maxExt)createExternalAssignment(d,slot)
     });
@@ -463,7 +469,8 @@ function rebalanceSchedule(){
       }
     });
     shuffleArray(requiredPositions(d).filter(p=>!occupied.has(p))).forEach(slot=>{
-      const e=chooseEmployee(d,slot);
+      let e=chooseEmployee(d,slot,false);
+      if(!e)e=chooseEmployee(d,slot,true);
       if(e)e.assignments[d]=slot;
       else if(allow&&externalEmployees.filter(x=>x.assignments[d]).length<maxExt)createExternalAssignment(d,slot)
     });
@@ -506,17 +513,27 @@ function populateEmployeeSelectors(){
 }
 function addOtherPlantAllocation(){
   const employeeIndex=parseInt(document.getElementById("allocationEmployee").value,10);
+  const plant=document.getElementById("allocationPlant").value;
   const startDay=parseInt(document.getElementById("allocationStartDay").value,10);
   const days=parseInt(document.getElementById("allocationDays").value||"1",10);
   if(Number.isNaN(employeeIndex)||!employees[employeeIndex]){showStatus("Select an employee first.",false);return}
   const end=Math.min(activeDayCount(),startDay+days);
-  for(let d=startDay;d<end;d++){employees[employeeIndex].otherPlant[d]=true;employees[employeeIndex].roff[d]=false;employees[employeeIndex].assignments[d]=""}
-  otherPlantAllocations.push({employeeIndex,startDay,days:end-startDay});
+  if(!Array.isArray(employees[employeeIndex].otherPlantLocation))employees[employeeIndex].otherPlantLocation=Array(7).fill("");
+  for(let d=startDay;d<end;d++){
+    employees[employeeIndex].otherPlant[d]=true;
+    employees[employeeIndex].otherPlantLocation[d]=plant;
+    employees[employeeIndex].roff[d]=false;
+    employees[employeeIndex].assignments[d]="";
+  }
+  otherPlantAllocations.push({employeeIndex,plant,startDay,days:end-startDay});
   render();if(scheduleGenerated)validateCoverage();saveData()
 }
 function removeAllocation(index){
   const a=otherPlantAllocations[index],e=employees[a.employeeIndex];
-  if(e)for(let d=a.startDay;d<Math.min(7,a.startDay+a.days);d++)e.otherPlant[d]=false;
+  if(e)for(let d=a.startDay;d<Math.min(7,a.startDay+a.days);d++){
+    e.otherPlant[d]=false;
+    if(Array.isArray(e.otherPlantLocation))e.otherPlantLocation[d]="";
+  }
   otherPlantAllocations.splice(index,1);render();if(scheduleGenerated)validateCoverage();saveData()
 }
 function renderAllocations(){
@@ -525,7 +542,7 @@ function renderAllocations(){
   panel.innerHTML=otherPlantAllocations.map((a,i)=>{
     const e=employees[a.employeeIndex];if(!e)return"";
     const end=Math.min(activeDayCount()-1,a.startDay+a.days-1);
-    return `<div class="allocation-row"><b>${escapeHTML(e.name||e.id)}</b><span>${ALL_DAYS[a.startDay]}${end>a.startDay?` through ${ALL_DAYS[end]}`:""}</span><button class="red" onclick="removeAllocation(${i})">Remove</button></div>`
+    return `<div class="allocation-row"><b>${escapeHTML(e.name||e.id)}</b><span>${escapeHTML(a.plant||"Other Plant")} — ${ALL_DAYS[a.startDay]}${end>a.startDay?` through ${ALL_DAYS[end]}`:""}</span><button class="red" onclick="removeAllocation(${i})">Remove</button></div>`
   }).join("")
 }
 function refreshSwapEmployees(){
@@ -557,13 +574,17 @@ function renderSummary(){
   let html='<table><thead><tr><th>Employee</th><th>ID</th><th>This Plant</th><th>Other Plant</th><th>Total Days</th><th>Total Hours</th><th>R/OFF</th><th>Status</th></tr></thead><tbody>';
   employees.forEach(e=>{
     const local=localWorkCount(e),other=otherPlantCount(e),total=local+other,roff=e.roff.slice(0,activeDayCount()).filter(Boolean).length;
-    html+=`<tr><td>${escapeHTML(e.name)}</td><td>${escapeHTML(e.id)}</td><td>${local}</td><td>${other}</td><td>${total}</td><td>${total*8}</td><td>${roff}</td><td>${total>maxWorkDays()?"⚠ Over Limit":"OK"}</td></tr>`
+    html+=`<tr><td>${escapeHTML(e.name)}</td><td>${escapeHTML(e.id)}</td><td>${local}</td><td>${other}</td><td>${total}</td><td>${total*8}</td><td>${roff}</td><td>${total>maxWorkDays()?`Overtime (${(total-maxWorkDays())*8} hrs)`:"OK"}</td></tr>`
   });
   panel.innerHTML=html+"</tbody></table>"
 }
 function buildScheduleText(){
-  const days=activeDays(),header=["Employee Name","Employee ID",...days];
-  const rows=[...employees,...externalEmployees].map(e=>[e.name,e.id,...days.map((_,d)=>e.otherPlant[d]?"OTHER PLANT":e.roff[d]?"R/OFF":displayAssignment(e.assignments[d]||""))]);
+  const days=activeDays(),header=[...days];
+  const rows=[...employees,...externalEmployees].map(e=>days.map((_,d)=>{
+    if(e.otherPlant[d])return e.otherPlantLocation?.[d]?`OTHER PLANT - ${e.otherPlantLocation[d]}`:"OTHER PLANT";
+    if(e.roff[d])return "R/OFF";
+    return displayAssignment(e.assignments[d]||"");
+  }));
   return[header,...rows].map(r=>r.join("\t")).join("\n")
 }
 async function copySchedule(){
