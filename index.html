@@ -92,7 +92,7 @@ th{background:var(--light-blue);position:sticky;top:0;z-index:2}
 <select id="scheduleLength" onchange="settingsChanged()"><option value="5">5 days</option><option value="6">6 days</option><option value="7" selected>7 days</option></select></label>
 <label>Maximum workdays/employee:
 <select id="maxWorkDays" onchange="settingsChanged()"><option value="5" selected>5</option><option value="6">6</option><option value="7">7</option></select></label>
-<label>Rework employees/day: <input type="number" id="reworkCount" value="1" min="0" max="5" onchange="settingsChanged()"></label>
+<span class="small"><b>Rework staffing is set separately for each day in the Daily Staffing Requirements table.</b></span>
 <label><input type="checkbox" id="allowExternal" checked onchange="settingsChanged()"> Allow external employees</label>
 <label>Max external/day: <input type="number" id="maxExternal" value="30" min="0" max="100" onchange="settingsChanged()"></label>
 <label><input type="checkbox" id="rotateMachines" checked onchange="settingsChanged()"> Randomize and rotate assignments</label>
@@ -102,7 +102,7 @@ th{background:var(--light-blue);position:sticky;top:0;z-index:2}
 
 <div class="card">
 <h2>4. Daily Staffing Requirements</h2>
-<p class="small">Enter the number of packers required for each machine on each day. For example, set Monday 1B to 2 and Tuesday 1B to 1.</p>
+<p class="small">Enter the number of packers required for each machine and the number of Rework workers for each specific day. Rework can be set from 0 to 5 independently for Monday through Sunday.</p>
 <div class="controls">
 <button class="light" onclick="setAllStaffing(1)">Set All to 1</button>
 <button class="light" onclick="setAllStaffing(2)">Set All to 2</button>
@@ -205,14 +205,15 @@ th{background:var(--light-blue);position:sticky;top:0;z-index:2}
 const ALL_DAYS=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
 let machines=["B1","B2","B3","B4","B5","B6","B7","B8","B9","B10","B11","B12","B13"];
 let staffingRequirements=Array.from({length:7},()=>Array(machines.length).fill(1));
+let reworkRequirements=Array(7).fill(1);
 let employees=[],externalEmployees=[],otherPlantAllocations=[],scheduleGenerated=false;
 
 function activeDayCount(){return parseInt(document.getElementById("scheduleLength").value||"7",10)}
 function activeDays(){return ALL_DAYS.slice(0,activeDayCount())}
 function maxWorkDays(){return parseInt(document.getElementById("maxWorkDays").value||"5",10)}
-function reworkCount(){return Math.max(0,Math.min(5,parseInt(document.getElementById("reworkCount").value||"1",10)))}
+function reworkCount(day=0){return Math.max(0,Math.min(5,parseInt(reworkRequirements[day]??1,10)))}
 function escapeHTML(t){return String(t||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]))}
-function createEmployee(name="",id=""){return{name,id,skills:"ALL",roff:Array(7).fill(false),otherPlant:Array(7).fill(false),otherPlantLocation:Array(7).fill(""),assignments:Array(7).fill(""),cellCycle:Array(7).fill(0),originalAssignments:Array(7).fill(""),external:false}}
+function createEmployee(name="",id=""){return{name,id,skills:"ALL",roff:Array(7).fill(false),otherPlant:Array(7).fill(false),otherPlantLocation:Array(7).fill(""),assignments:Array(7).fill(""),lockedAssignments:Array(7).fill(false),cellCycle:Array(7).fill(0),originalAssignments:Array(7).fill(""),external:false}}
 function displayAssignment(slot){
   if(!slot)return"";
   const match=slot.match(/^(.*)-P\d+$/);
@@ -238,7 +239,8 @@ function requiredPositions(day){
     const count=Math.max(0,parseInt(staffingRequirements[day]?.[mi]??1,10));
     for(let p=1;p<=count;p++)positions.push(`${m}-P${p}`);
   });
-  for(let r=1;r<=reworkCount();r++)positions.push(`REWORK-${r}`);
+  const reworkForDay=Math.max(0,Math.min(5,parseInt(reworkRequirements[day]??1,10)));
+  for(let r=1;r<=reworkForDay;r++)positions.push(`REWORK-${r}`);
   return positions;
 }
 function initialize(){
@@ -314,11 +316,19 @@ function render(){
 function renderStaffingTable(){
   const days=activeDays(),table=document.getElementById("staffingTable");
   table.querySelector("thead").innerHTML=`<tr><th>Machine</th>${days.map((d,i)=>`<th>${d}<br><span class="small">${getDisplayDate(i)}</span></th>`).join("")}</tr>`;
-  table.querySelector("tbody").innerHTML=machines.map((m,mi)=>`<tr><th>${escapeHTML(m)}</th>${days.map((_,d)=>`<td><input type="number" min="0" max="10" value="${staffingRequirements[d]?.[mi]??1}" onchange="updateStaffing(${d},${mi},this.value)"></td>`).join("")}</tr>`).join("")
+  const machineRows=machines.map((m,mi)=>`<tr><th>${escapeHTML(m)}</th>${days.map((_,d)=>`<td><input type="number" min="0" max="10" value="${staffingRequirements[d]?.[mi]??1}" onchange="updateStaffing(${d},${mi},this.value)"></td>`).join("")}</tr>`).join("");
+  const reworkRow=`<tr><th>Rework</th>${days.map((_,d)=>`<td><input type="number" min="0" max="5" value="${reworkRequirements[d]??1}" onchange="updateReworkRequirement(${d},this.value)"></td>`).join("")}</tr>`;
+  table.querySelector("tbody").innerHTML=machineRows+reworkRow
 }
 function updateStaffing(day,mi,value){
   staffingRequirements[day][mi]=Math.max(0,Math.min(10,parseInt(value||"0",10)));
   if(scheduleGenerated)showStatus("Staffing changed. Use Rebalance to fill vacancies or Generate New Schedule to rebuild everything.",false);
+  saveData()
+}
+function updateReworkRequirement(day,value){
+  reworkRequirements[day]=Math.max(0,Math.min(5,parseInt(value||"0",10)));
+  if(scheduleGenerated)showStatus("Rework staffing changed. Use Rebalance to update the selected day.",false);
+  refreshDirectAssignmentOptions();
   saveData()
 }
 function setAllStaffing(value){
@@ -368,14 +378,19 @@ function toggleRoff(i,d){
   if(!Array.isArray(e.cellCycle))e.cellCycle=Array(7).fill(0);
   if(!Array.isArray(e.originalAssignments))e.originalAssignments=Array(7).fill("");
       if(!Array.isArray(e.otherPlantLocation))e.otherPlantLocation=Array(7).fill("");
+      if(!Array.isArray(e.lockedAssignments))e.lockedAssignments=Array(7).fill(false);
 
   const state=e.cellCycle[d]||0;
+  if(!Array.isArray(e.lockedAssignments))e.lockedAssignments=Array(7).fill(false);
+  e.lockedAssignments[d]=false;
 
   if(state===0){
     e.originalAssignments[d]=e.assignments[d]||"";
     e.roff[d]=true;
     e.assignments[d]="";
     e.cellCycle[d]=1;
+    if(!Array.isArray(e.lockedAssignments))e.lockedAssignments=Array(7).fill(false);
+    e.lockedAssignments[d]=false;
   }else if(state===1){
     e.roff[d]=false;
     e.assignments[d]="OFF";
@@ -462,6 +477,7 @@ function generateSchedule(){
     e.assignments=Array(7).fill("");
     e.cellCycle=Array(7).fill(0);
     e.originalAssignments=Array(7).fill("");
+    e.lockedAssignments=Array(7).fill(false);
   });
   const allow=document.getElementById("allowExternal").checked,maxExt=parseInt(document.getElementById("maxExternal").value||"0",10);
   for(let d=0;d<activeDayCount();d++){
@@ -481,9 +497,29 @@ function rebalanceSchedule(){
   const allow=document.getElementById("allowExternal").checked,maxExt=parseInt(document.getElementById("maxExternal").value||"0",10);
   for(let d=0;d<activeDayCount();d++){
     const valid=new Set(requiredPositions(d)),occupied=new Set();
+
+    // Preserve manually locked assignments first.
     employees.forEach(e=>{
-      if(e.roff[d]||e.otherPlant[d])e.assignments[d]="";
-      else if(e.assignments[d]&&e.assignments[d]!=="OFF"){
+      if(!Array.isArray(e.lockedAssignments))e.lockedAssignments=Array(7).fill(false);
+      if(e.roff[d]||e.otherPlant[d]){
+        e.assignments[d]="";
+        e.lockedAssignments[d]=false;
+        return;
+      }
+      if(e.lockedAssignments[d]&&e.assignments[d]&&e.assignments[d]!=="OFF"){
+        if(valid.has(e.assignments[d])&&!occupied.has(e.assignments[d])){
+          occupied.add(e.assignments[d]);
+        }else{
+          e.assignments[d]="OFF";
+          e.lockedAssignments[d]=false;
+        }
+      }
+    });
+
+    // Keep other valid assignments only after locked positions are reserved.
+    employees.forEach(e=>{
+      if(e.roff[d]||e.otherPlant[d]||e.lockedAssignments[d])return;
+      if(e.assignments[d]&&e.assignments[d]!=="OFF"){
         if(valid.has(e.assignments[d])&&!occupied.has(e.assignments[d]))occupied.add(e.assignments[d]);
         else e.assignments[d]="OFF"
       }
@@ -611,7 +647,7 @@ function occupiedByOther(day,slot,employeeIndex){
   return employees.some((e,i)=>i!==employeeIndex&&e.assignments[day]===slot)
 }
 function firstAvailableRework(day,employeeIndex){
-  for(let r=1;r<=reworkCount();r++){
+  for(let r=1;r<=reworkCount(day);r++){
     const slot=`REWORK-${r}`;
     if(!occupiedByOther(day,slot,employeeIndex))return slot
   }
@@ -627,15 +663,25 @@ function assignSpecificWorker(){
   if(e.roff[day]||e.otherPlant[day]){showDirectAssignStatus("This employee is R/OFF or assigned to another plant on the selected day.",false);return}
   if(requested==="REWORK")requested=firstAvailableRework(day,employeeIndex);
   if(!requested){showDirectAssignStatus("All configured Rework positions are already filled.",false);return}
-  if(requested!=="OFF"&&occupiedByOther(day,requested,employeeIndex)){
-    showDirectAssignStatus("That position is already assigned. Use the swap tool or choose another position.",false);return
-  }
   if(requested!=="OFF"&&!force&&!qualified(e,requested)){
     showDirectAssignStatus("Assignment blocked because the employee is not qualified. Use Manual Override only when approved.",false);return
   }
+
+  if(!Array.isArray(e.lockedAssignments))e.lockedAssignments=Array(7).fill(false);
+
+  // If another worker already holds the requested position, release that worker.
+  const displacedIndex=employees.findIndex((worker,i)=>i!==employeeIndex&&worker.assignments[day]===requested);
+  if(displacedIndex>=0){
+    employees[displacedIndex].assignments[day]="OFF";
+    if(!Array.isArray(employees[displacedIndex].lockedAssignments))employees[displacedIndex].lockedAssignments=Array(7).fill(false);
+    employees[displacedIndex].lockedAssignments[day]=false;
+  }
+
   e.assignments[day]=requested;
+  e.lockedAssignments[day]=requested!=="OFF";
+
   render();if(scheduleGenerated)validateCoverage();saveData();
-  showDirectAssignStatus(`${e.name||e.id} assigned to ${displayAssignment(requested)} on ${ALL_DAYS[day]}.`,true)
+  showDirectAssignStatus(`${e.name||e.id} assigned and locked to ${displayAssignment(requested)} on ${ALL_DAYS[day]}. Rebalance will keep this assignment.`,true)
 }
 function showDirectAssignStatus(msg,ok){
   const s=document.getElementById("directAssignStatus");s.className="status "+(ok?"success":"warning");s.textContent=msg
@@ -653,7 +699,12 @@ function swapAssignments(){
   if(ea.roff[d]||ea.otherPlant[d]||eb.roff[d]||eb.otherPlant[d]){showSwapStatus("R/OFF and OTHER PLANT employees cannot be swapped.",false);return}
   const aa=ea.assignments[d]||"OFF",ba=eb.assignments[d]||"OFF",force=document.getElementById("forceSwap").checked;
   if(!force&&((ba!=="OFF"&&!qualified(ea,ba))||(aa!=="OFF"&&!qualified(eb,aa)))){showSwapStatus("Swap blocked because one or both employees are not qualified.",false);return}
-  ea.assignments[d]=ba;eb.assignments[d]=aa;render();validateCoverage();saveData();showSwapStatus(`Swapped ${ea.name} and ${eb.name} on ${ALL_DAYS[d]}.`,true)
+  ea.assignments[d]=ba;eb.assignments[d]=aa;
+  if(!Array.isArray(ea.lockedAssignments))ea.lockedAssignments=Array(7).fill(false);
+  if(!Array.isArray(eb.lockedAssignments))eb.lockedAssignments=Array(7).fill(false);
+  ea.lockedAssignments[d]=ba!=="OFF";
+  eb.lockedAssignments[d]=aa!=="OFF";
+  render();validateCoverage();saveData();showSwapStatus(`Swapped and locked ${ea.name} and ${eb.name} on ${ALL_DAYS[d]}.`,true)
 }
 function showSwapStatus(msg,ok){const s=document.getElementById("swapStatus");s.className="status "+(ok?"success":"warning");s.textContent=msg}
 function renderExternalPanel(){
@@ -709,15 +760,15 @@ function downloadCSV(){
 function clearAll(){
   if(!confirm("Clear everything? This erases names, IDs, skills, R/OFF, Other Plant allocations, staffing requirements, and the schedule."))return;
   employees=[];externalEmployees=[];otherPlantAllocations=[];scheduleGenerated=false;
-  machines=Array.from({length:13},(_,i)=>`B${i+1}`);staffingRequirements=Array.from({length:7},()=>Array(machines.length).fill(1));
+  machines=Array.from({length:13},(_,i)=>`B${i+1}`);staffingRequirements=Array.from({length:7},()=>Array(machines.length).fill(1));reworkRequirements=Array(7).fill(1);
   document.getElementById("pasteBox").value="";document.getElementById("machineList").value=machines.join(", ");document.getElementById("coverage").innerHTML="";
   localStorage.removeItem("productionSchedulerV4");render();showStatus("Everything has been cleared.",true)
 }
 function showStatus(msg,ok){const s=document.getElementById("status");s.className="status "+(ok?"success":"warning");s.textContent=msg}
 function saveData(){
-  const data={machines,staffingRequirements,employees,externalEmployees,otherPlantAllocations,scheduleGenerated,
+  const data={machines,staffingRequirements,reworkRequirements,employees,externalEmployees,otherPlantAllocations,scheduleGenerated,
     weekStart:document.getElementById("weekStart").value,scheduleLength:document.getElementById("scheduleLength").value,
-    maxWorkDays:document.getElementById("maxWorkDays").value,reworkCount:document.getElementById("reworkCount").value,
+    maxWorkDays:document.getElementById("maxWorkDays").value,
     allowExternal:document.getElementById("allowExternal").checked,maxExternal:document.getElementById("maxExternal").value,
     rotateMachines:document.getElementById("rotateMachines").checked};
   localStorage.setItem("productionSchedulerV4",JSON.stringify(data))
@@ -728,6 +779,7 @@ function loadSavedData(){
     const d=JSON.parse(raw);
     machines=Array.isArray(d.machines)&&d.machines.length?d.machines:machines;
     staffingRequirements=Array.isArray(d.staffingRequirements)?d.staffingRequirements:Array.from({length:7},()=>Array(machines.length).fill(1));
+    reworkRequirements=Array.isArray(d.reworkRequirements)?d.reworkRequirements:Array(7).fill(parseInt(d.reworkCount||1,10));
     employees=d.employees||[];
     employees.forEach(e=>{
       if(!Array.isArray(e.cellCycle))e.cellCycle=Array(7).fill(0);
@@ -735,7 +787,7 @@ function loadSavedData(){
     });
     externalEmployees=d.externalEmployees||[];otherPlantAllocations=d.otherPlantAllocations||[];scheduleGenerated=!!d.scheduleGenerated;
     if(d.weekStart)document.getElementById("weekStart").value=d.weekStart;
-    ["scheduleLength","maxWorkDays","reworkCount","maxExternal"].forEach(id=>{if(d[id]!==undefined)document.getElementById(id).value=d[id]});
+    ["scheduleLength","maxWorkDays","maxExternal"].forEach(id=>{if(d[id]!==undefined)document.getElementById(id).value=d[id]});
     if(d.allowExternal!==undefined)document.getElementById("allowExternal").checked=d.allowExternal;
     if(d.rotateMachines!==undefined)document.getElementById("rotateMachines").checked=d.rotateMachines
   }catch(e){console.log("Could not load saved data")}
