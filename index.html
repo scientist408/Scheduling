@@ -97,7 +97,7 @@ th{background:var(--light-blue);position:sticky;top:0;z-index:2}
 <label>Max external/day: <input type="number" id="maxExternal" value="30" min="0" max="100" onchange="settingsChanged()"></label>
 <label><input type="checkbox" id="rotateMachines" checked onchange="settingsChanged()"> Randomize and rotate assignments</label>
 </div>
-<p class="small">Other Plant days count as 8 hours. When R/OFF causes a shortage, available internal employees are assigned first, including overtime, before external employees are used.</p>
+<p class="small">Other Plant days count as 8 hours. The scheduler gives each available employee 40 hours before assigning overtime to another employee. Internal employees are still prioritized before external employees.</p>
 </div>
 
 <div class="card">
@@ -107,6 +107,12 @@ th{background:var(--light-blue);position:sticky;top:0;z-index:2}
 <button class="light" onclick="setAllStaffing(1)">Set All to 1</button>
 <button class="light" onclick="setAllStaffing(2)">Set All to 2</button>
 <button class="light" onclick="setAllStaffing(0)">Set All to 0</button>
+</div>
+<div class="controls">
+<label>Rework start day: <select id="multiReworkStart"></select></label>
+<label>Number of days: <input type="number" id="multiReworkDays" value="1" min="1" max="7"></label>
+<label>Workers per day: <input type="number" id="multiReworkCount" value="1" min="0" max="5"></label>
+<button onclick="applyMultiDayRework()">Apply Rework to Multiple Days</button>
 </div>
 <div class="table-container"><table id="staffingTable"><thead></thead><tbody></tbody></table></div>
 </div>
@@ -335,6 +341,24 @@ function setAllStaffing(value){
   for(let d=0;d<activeDayCount();d++)for(let m=0;m<machines.length;m++)staffingRequirements[d][m]=value;
   renderStaffingTable();saveData()
 }
+function applyMultiDayRework(){
+  const startDay=parseInt(document.getElementById("multiReworkStart").value||"0",10);
+  const days=parseInt(document.getElementById("multiReworkDays").value||"1",10);
+  const count=Math.max(0,Math.min(5,parseInt(document.getElementById("multiReworkCount").value||"0",10)));
+  const end=Math.min(activeDayCount(),startDay+days);
+
+  for(let d=startDay;d<end;d++)reworkRequirements[d]=count;
+
+  renderStaffingTable();
+  refreshDirectAssignmentOptions();
+  saveData();
+
+  if(scheduleGenerated){
+    showStatus(`Rework set to ${count} worker(s) from ${ALL_DAYS[startDay]} through ${ALL_DAYS[end-1]}. Click Rebalance Schedule to apply it.`,false);
+  }else{
+    showStatus(`Rework set to ${count} worker(s) for ${end-startDay} day(s).`,true);
+  }
+}
 function renderEmployeeSetup(){
   const body=document.querySelector("#employeeSetupTable tbody");body.innerHTML="";
   employees.forEach((e,i)=>{
@@ -412,6 +436,7 @@ function qualified(e,slot){
 function localWorkCount(e){return e.assignments.slice(0,activeDayCount()).filter(a=>a&&a!=="OFF").length}
 function otherPlantCount(e){return e.otherPlant.slice(0,activeDayCount()).filter(Boolean).length}
 function workCount(e){return localWorkCount(e)+otherPlantCount(e)}
+function targetWorkDays(){return Math.min(5,activeDayCount())}
 function streakBefore(e,day){
   let c=0;for(let i=day-1;i>=0;i--){if(e.otherPlant[i]||(e.assignments[i]&&e.assignments[i]!=="OFF"))c++;else break}return c
 }
@@ -442,6 +467,11 @@ function rankCandidates(candidates,day,slot){
     const ao=consecutiveNonWorkBefore(a,day),bo=consecutiveNonWorkBefore(b,day);
     if(ao!==bo)return bo-ao;
 
+    const target=targetWorkDays();
+    const aBelow=workCount(a)<target;
+    const bBelow=workCount(b)<target;
+    if(aBelow!==bBelow)return aBelow?-1:1;
+
     if(workCount(a)!==workCount(b))return workCount(a)-workCount(b);
 
     if(document.getElementById("rotateMachines").checked){
@@ -462,6 +492,62 @@ function chooseEmployee(day,slot,allowOvertime=false){
   ));
   return rankCandidates(candidates,day,slot)[0]||null;
 }
+function balanceEmployeesToFortyHours(){
+  const target=targetWorkDays();
+  let changed=true;
+  let safety=0;
+
+  while(changed && safety<500){
+    changed=false;
+    safety++;
+
+    const receivers=employees
+      .map((e,i)=>({e,i,count:workCount(e)}))
+      .filter(x=>x.count<target)
+      .sort((a,b)=>a.count-b.count);
+
+    const donors=employees
+      .map((e,i)=>({e,i,count:workCount(e)}))
+      .filter(x=>x.count>target)
+      .sort((a,b)=>b.count-a.count);
+
+    outer:
+    for(const receiver of receivers){
+      for(const donor of donors){
+        for(let d=0;d<activeDayCount();d++){
+          const donorSlot=donor.e.assignments[d];
+          const donorLocked=Array.isArray(donor.e.lockedAssignments)&&donor.e.lockedAssignments[d];
+          const receiverAvailable=
+            !receiver.e.roff[d] &&
+            !receiver.e.otherPlant[d] &&
+            (!receiver.e.assignments[d] || receiver.e.assignments[d]==="OFF");
+
+          if(
+            donorSlot &&
+            donorSlot!=="OFF" &&
+            !donorLocked &&
+            receiverAvailable &&
+            qualified(receiver.e,donorSlot)
+          ){
+            receiver.e.assignments[d]=donorSlot;
+            donor.e.assignments[d]="OFF";
+            changed=true;
+            break outer;
+          }
+        }
+      }
+    }
+  }
+}
+function countBelowForty(){
+  const target=targetWorkDays();
+  return employees.filter(e=>workCount(e)<target).length;
+}
+function countOverForty(){
+  const target=targetWorkDays();
+  return employees.filter(e=>workCount(e)>target).length;
+}
+
 function createExternalAssignment(day,slot){
   const ext=createEmployee("External Employee","EXT");ext.external=true;ext.assignments[day]=slot;externalEmployees.push(ext)
 }
@@ -489,6 +575,7 @@ function generateSchedule(){
     });
     employees.forEach(e=>{if(e.roff[d]||e.otherPlant[d])e.assignments[d]="";else if(!e.assignments[d])e.assignments[d]="OFF"})
   }
+  balanceEmployeesToFortyHours();
   scheduleGenerated=true;render();validateCoverage();saveData()
 }
 function rebalanceSchedule(){
@@ -532,6 +619,7 @@ function rebalanceSchedule(){
     });
     employees.forEach(e=>{if(!e.roff[d]&&!e.otherPlant[d]&&!e.assignments[d])e.assignments[d]="OFF"})
   }
+  balanceEmployeesToFortyHours();
   render();validateCoverage();saveData()
 }
 function minimumStreakViolations(){
@@ -556,8 +644,22 @@ function validateCoverage(){
     if(missing.length)complete=false;
     cards.push(`<div class="coverage-card"><b>${ALL_DAYS[d]}</b><br>${missing.length?`Missing: ${missing.map(displayAssignment).join(", ")}`:`✓ ${req.length} positions covered`}</div>`)
   }
+  const below=countBelowForty(),over=countOverForty();
+  if(below||over){
+    cards.push(`<div class="coverage-card"><b>Weekly Hours</b><br>${below?`${below} employee(s) below 40 hours.<br>`:""}${over?`${over} employee(s) above 40 hours.`:""}</div>`);
+  }
+
   document.getElementById("coverage").innerHTML=cards.join("");
-  showStatus(complete?"Schedule complete. All required positions are covered.":"Some required positions remain uncovered.",complete)
+
+  if(!complete){
+    showStatus("Some required positions remain uncovered.",false);
+  }else if(below&&over){
+    showStatus("Coverage is complete, but some employees remain below 40 hours while others have overtime. This can happen only when R/OFF, Other Plant assignments, qualifications, or locked manual assignments prevent a valid transfer.",false);
+  }else if(below){
+    showStatus("Coverage is complete, but some employees are below 40 hours because there are not enough available qualified assignments or they are unavailable.",false);
+  }else{
+    showStatus("Schedule complete. All required positions are covered, and employees receive 40 hours before overtime is assigned.",true);
+  }
 }
 function populateDaySelect(id){
   const s=document.getElementById(id),old=s.value;s.innerHTML=activeDays().map((d,i)=>`<option value="${i}">${d}</option>`).join("");
@@ -570,6 +672,7 @@ function populateEmployeeSelectors(){
   document.getElementById("directAssignEmployee").innerHTML=employeeOptions;
   populateDaySelect("allocationStartDay");
   populateDaySelect("multiRoffStart");
+  populateDaySelect("multiReworkStart");
   populateDaySelect("swapDay");
   populateDaySelect("directAssignDay")
 }
@@ -721,7 +824,9 @@ function renderSummary(){
   let html='<table><thead><tr><th>Employee</th><th>ID</th><th>This Plant</th><th>Other Plant</th><th>Total Days</th><th>Total Hours</th><th>R/OFF</th><th>Status</th></tr></thead><tbody>';
   employees.forEach(e=>{
     const local=localWorkCount(e),other=otherPlantCount(e),total=local+other,roff=e.roff.slice(0,activeDayCount()).filter(Boolean).length;
-    html+=`<tr><td>${escapeHTML(e.name)}</td><td>${escapeHTML(e.id)}</td><td>${local}</td><td>${other}</td><td>${total}</td><td>${total*8}</td><td>${roff}</td><td>${total>maxWorkDays()?`Overtime (${(total-maxWorkDays())*8} hrs)`:"OK"}</td></tr>`
+    const target=targetWorkDays();
+    const status=total<target?`Below 40 hrs (${total*8})`:total>target?`Overtime (${(total-target)*8} hrs)`:"40 hrs";
+    html+=`<tr><td>${escapeHTML(e.name)}</td><td>${escapeHTML(e.id)}</td><td>${local}</td><td>${other}</td><td>${total}</td><td>${total*8}</td><td>${roff}</td><td>${status}</td></tr>`
   });
   panel.innerHTML=html+"</tbody></table>"
 }
