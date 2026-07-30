@@ -726,13 +726,13 @@ function renderSummary(){
   panel.innerHTML=html+"</tbody></table>"
 }
 function buildScheduleText(){
-  const days=activeDays(),header=[...days];
+  const days=activeDays();
   const rows=[...employees,...externalEmployees].map(e=>days.map((_,d)=>{
     if(e.otherPlant[d])return e.otherPlantLocation?.[d]?`OTHER PLANT - ${e.otherPlantLocation[d]}`:"OTHER PLANT";
     if(e.roff[d])return "R/OFF";
     return displayAssignment(e.assignments[d]||"");
   }));
-  return[header,...rows].map(r=>r.join("\t")).join("\n")
+  return rows.map(r=>r.join("\t")).join("\n")
 }
 async function copySchedule(){
   const text=buildScheduleText();
