@@ -92,7 +92,7 @@ th{background:var(--light-blue);position:sticky;top:0;z-index:2}
 <select id="scheduleLength" onchange="settingsChanged()"><option value="5">5 days</option><option value="6">6 days</option><option value="7" selected>7 days</option></select></label>
 <label>Maximum workdays/employee:
 <select id="maxWorkDays" onchange="settingsChanged()"><option value="5" selected>5</option><option value="6">6</option><option value="7">7</option></select></label>
-<label>Rework employees/day: <input type="number" id="reworkCount" value="1" min="0" max="20" onchange="settingsChanged()"></label>
+<label>Rework employees/day: <input type="number" id="reworkCount" value="1" min="0" max="5" onchange="settingsChanged()"></label>
 <label><input type="checkbox" id="allowExternal" checked onchange="settingsChanged()"> Allow external employees</label>
 <label>Max external/day: <input type="number" id="maxExternal" value="30" min="0" max="100" onchange="settingsChanged()"></label>
 <label><input type="checkbox" id="rotateMachines" checked onchange="settingsChanged()"> Randomize and rotate assignments</label>
@@ -141,6 +141,13 @@ th{background:var(--light-blue);position:sticky;top:0;z-index:2}
 <div class="card">
 <h2>7. Requested Off & Weekly Schedule</h2>
 <p class="small"><b>Cell click cycle:</b> first click = R/OFF, second click = OFF, third click = restore the original assignment.</p>
+<div class="controls">
+<label>Employee: <select id="multiRoffEmployee"></select></label>
+<label>Start day: <select id="multiRoffStart"></select></label>
+<label>Number of R/OFF days: <input type="number" id="multiRoffDays" value="1" min="1" max="7"></label>
+<button onclick="applyMultiDayRoff()">Apply Multiple R/OFF Days</button>
+<button class="light" onclick="clearEmployeeRoff()">Clear Employee R/OFF</button>
+</div>
 <div class="table-container"><table id="scheduleTable"><thead></thead><tbody></tbody></table></div>
 <div class="legend">
 <span><span class="legend-box" style="background:#1976d2"></span>R/OFF</span>
@@ -163,7 +170,20 @@ th{background:var(--light-blue);position:sticky;top:0;z-index:2}
 </div>
 
 <div class="card">
-<h2>8. Manual Skill-Based Swap</h2>
+<h2>8. Assign a Specific Worker</h2>
+<p class="small">Choose a day, employee, and machine or Rework assignment. Qualification is checked unless Manual Override is selected.</p>
+<div class="controls">
+<label>Day: <select id="directAssignDay" onchange="refreshDirectAssignmentOptions()"></select></label>
+<label>Employee: <select id="directAssignEmployee"></select></label>
+<label>Assignment: <select id="directAssignSlot"></select></label>
+<label><input type="checkbox" id="forceDirectAssign"> Manual Override</label>
+<button class="orange" onclick="assignSpecificWorker()">Assign Worker</button>
+</div>
+<div id="directAssignStatus"></div>
+</div>
+
+<div class="card">
+<h2>9. Manual Skill-Based Swap</h2>
 <p class="small">Swap two workers between machines or Rework on the same day. The app checks both workers’ qualifications.</p>
 <div class="controls">
 <label>Day: <select id="swapDay" onchange="refreshSwapEmployees()"></select></label>
@@ -176,8 +196,8 @@ th{background:var(--light-blue);position:sticky;top:0;z-index:2}
 </div>
 
 <div class="grid-2">
-<div class="card"><h2>9. External Employees Used Here</h2><div id="externalEmployees"></div></div>
-<div class="card"><h2>10. Weekly Employee Summary</h2><div id="employeeSummary" class="summary"></div></div>
+<div class="card"><h2>10. External Employees Used Here</h2><div id="externalEmployees"></div></div>
+<div class="card"><h2>11. Weekly Employee Summary</h2><div id="employeeSummary" class="summary"></div></div>
 </div>
 </div>
 
@@ -190,7 +210,7 @@ let employees=[],externalEmployees=[],otherPlantAllocations=[],scheduleGenerated
 function activeDayCount(){return parseInt(document.getElementById("scheduleLength").value||"7",10)}
 function activeDays(){return ALL_DAYS.slice(0,activeDayCount())}
 function maxWorkDays(){return parseInt(document.getElementById("maxWorkDays").value||"5",10)}
-function reworkCount(){return parseInt(document.getElementById("reworkCount").value||"1",10)}
+function reworkCount(){return Math.max(0,Math.min(5,parseInt(document.getElementById("reworkCount").value||"1",10)))}
 function escapeHTML(t){return String(t||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]))}
 function createEmployee(name="",id=""){return{name,id,skills:"ALL",roff:Array(7).fill(false),otherPlant:Array(7).fill(false),otherPlantLocation:Array(7).fill(""),assignments:Array(7).fill(""),cellCycle:Array(7).fill(0),originalAssignments:Array(7).fill(""),external:false}}
 function displayAssignment(slot){
@@ -289,7 +309,7 @@ function getDisplayDate(index){
 }
 function render(){
   renderStaffingTable();renderEmployeeSetup();renderSchedule();renderAllocations();
-  renderExternalPanel();renderSummary();populateEmployeeSelectors();refreshSwapEmployees()
+  renderExternalPanel();renderSummary();populateEmployeeSelectors();refreshSwapEmployees();refreshDirectAssignmentOptions()
 }
 function renderStaffingTable(){
   const days=activeDays(),table=document.getElementById("staffingTable");
@@ -508,9 +528,42 @@ function populateDaySelect(id){
   if([...s.options].some(o=>o.value===old))s.value=old
 }
 function populateEmployeeSelectors(){
-  document.getElementById("allocationEmployee").innerHTML=employees.map((e,i)=>`<option value="${i}">${escapeHTML(e.name||e.id||`Employee ${i+1}`)}</option>`).join("");
-  populateDaySelect("allocationStartDay");populateDaySelect("swapDay")
+  const employeeOptions=employees.map((e,i)=>`<option value="${i}">${escapeHTML(e.name||e.id||`Employee ${i+1}`)}</option>`).join("");
+  document.getElementById("allocationEmployee").innerHTML=employeeOptions;
+  document.getElementById("multiRoffEmployee").innerHTML=employeeOptions;
+  document.getElementById("directAssignEmployee").innerHTML=employeeOptions;
+  populateDaySelect("allocationStartDay");
+  populateDaySelect("multiRoffStart");
+  populateDaySelect("swapDay");
+  populateDaySelect("directAssignDay")
 }
+function applyMultiDayRoff(){
+  const employeeIndex=parseInt(document.getElementById("multiRoffEmployee").value,10);
+  const startDay=parseInt(document.getElementById("multiRoffStart").value,10);
+  const days=parseInt(document.getElementById("multiRoffDays").value||"1",10);
+  const e=employees[employeeIndex];
+  if(!e){showStatus("Select an employee first.",false);return}
+  const end=Math.min(activeDayCount(),startDay+days);
+  for(let d=startDay;d<end;d++){
+    if(e.otherPlant[d])continue;
+    if(!Array.isArray(e.cellCycle))e.cellCycle=Array(7).fill(0);
+    if(!Array.isArray(e.originalAssignments))e.originalAssignments=Array(7).fill("");
+    if(e.cellCycle[d]===0)e.originalAssignments[d]=e.assignments[d]||"";
+    e.roff[d]=true;e.assignments[d]="";e.cellCycle[d]=1;
+  }
+  render();if(scheduleGenerated)validateCoverage();saveData();
+  showStatus(`${e.name||e.id} marked R/OFF for ${end-startDay} day(s).`,true)
+}
+function clearEmployeeRoff(){
+  const employeeIndex=parseInt(document.getElementById("multiRoffEmployee").value,10);
+  const e=employees[employeeIndex];
+  if(!e){showStatus("Select an employee first.",false);return}
+  for(let d=0;d<activeDayCount();d++){
+    if(e.roff[d]){e.roff[d]=false;e.assignments[d]=(e.originalAssignments&&e.originalAssignments[d])||"";if(Array.isArray(e.cellCycle))e.cellCycle[d]=0}
+  }
+  render();if(scheduleGenerated)validateCoverage();saveData();showStatus(`R/OFF cleared for ${e.name||e.id}.`,true)
+}
+
 function addOtherPlantAllocation(){
   const employeeIndex=parseInt(document.getElementById("allocationEmployee").value,10);
   const plant=document.getElementById("allocationPlant").value;
@@ -545,6 +598,49 @@ function renderAllocations(){
     return `<div class="allocation-row"><b>${escapeHTML(e.name||e.id)}</b><span>${escapeHTML(a.plant||"Other Plant")} — ${ALL_DAYS[a.startDay]}${end>a.startDay?` through ${ALL_DAYS[end]}`:""}</span><button class="red" onclick="removeAllocation(${i})">Remove</button></div>`
   }).join("")
 }
+function refreshDirectAssignmentOptions(){
+  const day=parseInt(document.getElementById("directAssignDay")?.value||"0",10);
+  const slotSelect=document.getElementById("directAssignSlot");
+  if(!slotSelect)return;
+  const options=requiredPositions(day).map(slot=>`<option value="${slot}">${escapeHTML(displayAssignment(slot))}</option>`);
+  options.push('<option value="REWORK">Rework - first available slot</option>');
+  options.push('<option value="OFF">OFF</option>');
+  slotSelect.innerHTML=options.join("")
+}
+function occupiedByOther(day,slot,employeeIndex){
+  return employees.some((e,i)=>i!==employeeIndex&&e.assignments[day]===slot)
+}
+function firstAvailableRework(day,employeeIndex){
+  for(let r=1;r<=reworkCount();r++){
+    const slot=`REWORK-${r}`;
+    if(!occupiedByOther(day,slot,employeeIndex))return slot
+  }
+  return null
+}
+function assignSpecificWorker(){
+  const day=parseInt(document.getElementById("directAssignDay").value,10);
+  const employeeIndex=parseInt(document.getElementById("directAssignEmployee").value,10);
+  let requested=document.getElementById("directAssignSlot").value;
+  const force=document.getElementById("forceDirectAssign").checked;
+  const e=employees[employeeIndex];
+  if(!e){showDirectAssignStatus("Select an employee first.",false);return}
+  if(e.roff[day]||e.otherPlant[day]){showDirectAssignStatus("This employee is R/OFF or assigned to another plant on the selected day.",false);return}
+  if(requested==="REWORK")requested=firstAvailableRework(day,employeeIndex);
+  if(!requested){showDirectAssignStatus("All configured Rework positions are already filled.",false);return}
+  if(requested!=="OFF"&&occupiedByOther(day,requested,employeeIndex)){
+    showDirectAssignStatus("That position is already assigned. Use the swap tool or choose another position.",false);return
+  }
+  if(requested!=="OFF"&&!force&&!qualified(e,requested)){
+    showDirectAssignStatus("Assignment blocked because the employee is not qualified. Use Manual Override only when approved.",false);return
+  }
+  e.assignments[day]=requested;
+  render();if(scheduleGenerated)validateCoverage();saveData();
+  showDirectAssignStatus(`${e.name||e.id} assigned to ${displayAssignment(requested)} on ${ALL_DAYS[day]}.`,true)
+}
+function showDirectAssignStatus(msg,ok){
+  const s=document.getElementById("directAssignStatus");s.className="status "+(ok?"success":"warning");s.textContent=msg
+}
+
 function refreshSwapEmployees(){
   const day=parseInt(document.getElementById("swapDay").value||"0",10);
   const options=employees.map((e,i)=>`<option value="${i}">${escapeHTML(e.name||e.id||`Employee ${i+1}`)} — ${displayAssignment(e.otherPlant[day]?"OTHER PLANT":e.roff[day]?"R/OFF":e.assignments[day]||"Blank")}</option>`).join("");
