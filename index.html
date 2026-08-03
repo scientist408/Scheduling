@@ -18,7 +18,7 @@
 
 <div class="card"><h2>2. Machines</h2><div class="controls"><label>Start <input type="number" id="machineStart" value="1" min="0" style="width:75px"></label><label>End <input type="number" id="machineEnd" value="13" min="0" style="width:75px"></label><label>Prefix <input id="machinePrefix" value="B" style="width:75px"></label><label>Suffix <input id="machineSuffix" value="" style="width:75px"></label><button onclick="buildMachineRange()">Create Range</button></div><textarea id="machineList" style="min-height:65px" placeholder="B1, B2, B3"></textarea><div class="controls"><button onclick="applyMachineList()">Apply Machine List</button><button class="light" onclick="resetMachines()">Reset B1–B13</button><span id="machineMessage" class="small"></span></div></div>
 
-<div class="card"><h2>3. Schedule Settings</h2><div class="controls"><label>Schedule length <select id="scheduleLength" onchange="settingsChanged()"><option value="5">5 days</option><option value="6">6 days</option><option value="7" selected>7 days</option></select></label><label>Minimum weekly hours <select id="targetHours" onchange="targetHoursChanged()"><option value="40" selected>40 hours</option><option value="48">48 hours</option><option value="56">56 hours</option><option value="custom">Custom</option></select></label><label id="customHoursWrap" style="display:none">Custom hours <input type="number" id="customHours" value="40" min="8" max="80" step="8" onchange="settingsChanged()" style="width:85px"></label><label><input type="checkbox" id="rotateMachines" checked onchange="settingsChanged()"> Randomize and rotate machines</label></div><p class="small">Each shift is 8 hours. The selected hours are treated as the minimum each available employee should receive. The scheduler assigns employees below the minimum before giving overtime to anyone else. OFF is created only after at least three consecutive workdays and only after the employee has reached the minimum; otherwise the cell remains UNASSIGNED.</p></div>
+<div class="card"><h2>3. Schedule Settings</h2><div class="controls"><label>Schedule length <select id="scheduleLength" onchange="settingsChanged()"><option value="5">5 days</option><option value="6">6 days</option><option value="7" selected>7 days</option></select></label><label>Minimum weekly hours <select id="targetHours" onchange="targetHoursChanged()"><option value="40" selected>40 hours</option><option value="48">48 hours</option><option value="56">56 hours</option><option value="custom">Custom</option></select></label><label id="customHoursWrap" style="display:none">Custom hours <input type="number" id="customHours" value="40" min="8" max="80" step="8" onchange="settingsChanged()" style="width:85px"></label><label><input type="checkbox" id="rotateMachines" checked onchange="settingsChanged()"> Randomize and rotate machines</label></div><p class="small">Each shift is 8 hours. The selected hours are treated as the minimum each available employee should receive. The scheduler assigns employees below the minimum before giving overtime to anyone else. OFF is created after at least two consecutive workdays once the employee is at or above the minimum. Remaining nonworking days stay UNASSIGNED, and OFF days are distributed across the week.</p></div>
 
 <div class="card"><h2>4. Daily Staffing Requirements</h2><p class="small">Set the packers needed for each machine and Rework for each day. Rework can be 0–5.</p><div class="controls"><button class="light" onclick="setAllMachineStaffing(1)">All machines = 1</button><button class="light" onclick="setAllMachineStaffing(2)">All machines = 2</button><button class="light" onclick="setAllMachineStaffing(0)">All machines = 0</button></div><div class="controls"><label>Rework start day <select id="multiReworkStart"></select></label><label>Number of days <input type="number" id="multiReworkDays" value="1" min="1" max="7" style="width:75px"></label><label>Workers/day <input type="number" id="multiReworkCount" value="1" min="0" max="5" style="width:75px"></label><button onclick="applyMultiDayRework()">Apply Rework to Multiple Days</button></div><div class="table-wrap"><table id="staffingTable"><thead></thead><tbody></tbody></table></div></div>
 
@@ -77,8 +77,8 @@ function chooseWorker(day,slot,used){
   return c[0]||null
 }
 function confirmGenerate(){const msg=generated?"Generate a new schedule?\n\nThis will erase current assignments and manual changes. R/OFF selections will remain.":"Generate a new schedule?";if(confirm(msg))generateSchedule()}
-function generateSchedule(){if(!employees.length){showStatus("Load employees first.",false);return}employees.forEach(e=>{e.assignments=Array(7).fill("");e.locks=Array(7).fill(false);e.cycle=Array(7).fill(0);e.original=Array(7).fill("")});for(let d=0;d<activeDayCount();d++){const used=new Set();shuffled(requiredSlots(d)).forEach(slot=>{const pick=chooseWorker(d,slot,used);if(pick){pick.e.assignments[d]=slot;used.add(pick.i)}});employees.forEach(e=>{if(e.roff[d])return;if(!e.assignments[d]){const streak=currentStreak(e,d);e.assignments[d]=(hours(e)>=targetHours()&&streak>=3)?"OFF":"UNASSIGNED"}})}balanceToTarget();generated=true;render();save();showStatus("New schedule generated.",true)}
-function rebalanceSchedule(){if(!generated){showStatus("Generate a schedule first.",false);return}for(let d=0;d<activeDayCount();d++){const valid=new Set(requiredSlots(d)),occupied=new Set();employees.forEach(e=>{if(e.roff[d]){e.assignments[d]="";e.locks[d]=false;return}if(e.locks[d]&&isWork(e.assignments[d])&&valid.has(e.assignments[d])&&!occupied.has(e.assignments[d]))occupied.add(e.assignments[d])});employees.forEach(e=>{if(e.roff[d]||e.locks[d])return;const a=e.assignments[d];if(isMachineAssignment(a)||a?.startsWith("R:")){if(valid.has(a)&&!occupied.has(a))occupied.add(a);else e.assignments[d]="UNASSIGNED"}});const used=new Set(employees.map((e,i)=>isWork(e.assignments[d])?i:null).filter(x=>x!==null));shuffled(requiredSlots(d).filter(s=>!occupied.has(s))).forEach(slot=>{const pick=chooseWorker(d,slot,used);if(pick){pick.e.assignments[d]=slot;used.add(pick.i)}});employees.forEach(e=>{if(e.roff[d])return;if(!e.assignments[d]){const streak=currentStreak(e,d);e.assignments[d]=(hours(e)>=targetHours()&&streak>=3)?"OFF":"UNASSIGNED"}})}balanceToTarget();render();save();showStatus("Schedule rebalanced. Locked manual assignments were preserved.",true)}
+function generateSchedule(){if(!employees.length){showStatus("Load employees first.",false);return}employees.forEach(e=>{e.assignments=Array(7).fill("");e.locks=Array(7).fill(false);e.cycle=Array(7).fill(0);e.original=Array(7).fill("")});for(let d=0;d<activeDayCount();d++){const used=new Set();shuffled(requiredSlots(d)).forEach(slot=>{const pick=chooseWorker(d,slot,used);if(pick){pick.e.assignments[d]=slot;used.add(pick.i)}});employees.forEach(e=>{if(e.roff[d])return;if(!e.assignments[d]){const streak=currentStreak(e,d);e.assignments[d]="UNASSIGNED"}})}balanceToTarget();distributeOffAndUnassigned();generated=true;render();save();showStatus("New schedule generated.",true)}
+function rebalanceSchedule(){if(!generated){showStatus("Generate a schedule first.",false);return}for(let d=0;d<activeDayCount();d++){const valid=new Set(requiredSlots(d)),occupied=new Set();employees.forEach(e=>{if(e.roff[d]){e.assignments[d]="";e.locks[d]=false;return}if(e.locks[d]&&isWork(e.assignments[d])&&valid.has(e.assignments[d])&&!occupied.has(e.assignments[d]))occupied.add(e.assignments[d])});employees.forEach(e=>{if(e.roff[d]||e.locks[d])return;const a=e.assignments[d];if(isMachineAssignment(a)||a?.startsWith("R:")){if(valid.has(a)&&!occupied.has(a))occupied.add(a);else e.assignments[d]="UNASSIGNED"}});const used=new Set(employees.map((e,i)=>isWork(e.assignments[d])?i:null).filter(x=>x!==null));shuffled(requiredSlots(d).filter(s=>!occupied.has(s))).forEach(slot=>{const pick=chooseWorker(d,slot,used);if(pick){pick.e.assignments[d]=slot;used.add(pick.i)}});employees.forEach(e=>{if(e.roff[d])return;if(!e.assignments[d]){const streak=currentStreak(e,d);e.assignments[d]="UNASSIGNED"}})}balanceToTarget();distributeOffAndUnassigned();render();save();showStatus("Schedule rebalanced. Locked manual assignments were preserved.",true)}
 function balanceToTarget(){
   let guard=0;
   let changed=true;
@@ -154,11 +154,81 @@ function balanceToTarget(){
       }
       if(!e.assignments[d]){
         const streak=currentStreak(e,d);
-        e.assignments[d]=(hours(e)>=targetHours()&&streak>=3)?"OFF":"UNASSIGNED";
+        e.assignments[d]="UNASSIGNED";
       }
     }
   });
 }}}
+
+function distributeOffAndUnassigned(){
+  const dayCount=activeDayCount();
+  const offCountByDay=Array(dayCount).fill(0);
+
+  // Recalculate nonworking statuses after the final assignments are known.
+  employees.forEach(e=>{
+    for(let d=0;d<dayCount;d++){
+      if(e.roff[d])continue;
+      if(!isWork(e.assignments[d])&&!e.locks[d]){
+        e.assignments[d]="UNASSIGNED";
+      }
+    }
+  });
+
+  // Employees below the minimum keep UNASSIGNED cells so supervisors
+  // can see that additional hours are still needed.
+  const eligibleEmployees=shuffled(
+    employees.map((e,i)=>({e,i})).filter(x=>hours(x.e)>=targetHours())
+  );
+
+  eligibleEmployees.forEach(({e})=>{
+    const nonworkDays=[];
+    for(let d=0;d<dayCount;d++){
+      if(!e.roff[d]&&!isWork(e.assignments[d])&&!e.locks[d]){
+        nonworkDays.push(d);
+      }
+    }
+
+    if(!nonworkDays.length)return;
+
+    // With two nonworking days, normally create one OFF and leave
+    // one UNASSIGNED. This creates a visible mix instead of two blocks.
+    const desiredOffCount=Math.max(1,Math.ceil(nonworkDays.length/2));
+
+    const candidates=nonworkDays.filter(d=>{
+      // OFF is permitted after at least two immediately preceding
+      // consecutive workdays.
+      return d>=2&&isWork(e.assignments[d-1])&&isWork(e.assignments[d-2]);
+    });
+
+    candidates.sort((a,b)=>{
+      // Spread OFF days across the week and avoid repeatedly choosing
+      // the same column for many employees.
+      if(offCountByDay[a]!==offCountByDay[b]){
+        return offCountByDay[a]-offCountByDay[b];
+      }
+
+      // Prefer days farther from an existing OFF/R-OFF for this employee.
+      const distanceScore=day=>{
+        let nearest=99;
+        for(let x=0;x<dayCount;x++){
+          if(x===day)continue;
+          if(e.roff[x]||e.assignments[x]==="OFF"){
+            nearest=Math.min(nearest,Math.abs(day-x));
+          }
+        }
+        return nearest;
+      };
+      return distanceScore(b)-distanceScore(a);
+    });
+
+    for(let n=0;n<Math.min(desiredOffCount,candidates.length);n++){
+      const day=candidates[n];
+      e.assignments[day]="OFF";
+      offCountByDay[day]++;
+    }
+  });
+}
+
 function firstFreeRework(day,ignore){const used=new Set(employees.map((e,i)=>i===ignore?null:e.assignments[day]).filter(Boolean));for(let r=1;r<=reworkReq[day];r++)if(!used.has(`R:${r}`))return`R:${r}`;return null}function firstFreeMachineSlot(day,m,ignore){const used=new Set(employees.map((e,i)=>i===ignore?null:e.assignments[day]).filter(Boolean)),mi=machines.indexOf(m);for(let k=1;k<=Number(staffing[day][mi]||0);k++)if(!used.has(`M:${m}#${k}`))return`M:${m}#${k}`;return null}
 function populateDaySelect(id){const s=document.getElementById(id),old=s.value;s.innerHTML=activeDays().map((d,i)=>`<option value="${i}">${d}</option>`).join("");if([...s.options].some(o=>o.value===old))s.value=old}
 function populateSelectors(){const emp=employees.map((e,i)=>`<option value="${i}">${esc(e.name||e.id||`Employee ${i+1}`)}</option>`).join("");["multiRoffEmployee","directEmployee"].forEach(id=>document.getElementById(id).innerHTML=emp);["multiRoffStart","multiReworkStart","directDay","swapDay"].forEach(populateDaySelect);refreshDirectOptions();refreshSwapOptions()}
