@@ -18,7 +18,8 @@
 
 <div class="card"><h2>2. Machines</h2><div class="controls"><label>Start <input type="number" id="machineStart" value="1" min="0" style="width:75px"></label><label>End <input type="number" id="machineEnd" value="13" min="0" style="width:75px"></label><label>Prefix <input id="machinePrefix" value="B" style="width:75px"></label><label>Suffix <input id="machineSuffix" value="" style="width:75px"></label><button onclick="buildMachineRange()">Create Range</button></div><textarea id="machineList" style="min-height:65px" placeholder="B1, B2, B3"></textarea><div class="controls"><button onclick="applyMachineList()">Apply Machine List</button><button class="light" onclick="resetMachines()">Reset B1–B13</button><span id="machineMessage" class="small"></span></div></div>
 
-<div class="card"><h2>3. Schedule Settings</h2><div class="controls"><label>Schedule length <select id="scheduleLength" onchange="settingsChanged()"><option value="5">5 days</option><option value="6">6 days</option><option value="7" selected>7 days</option></select></label><label>Minimum weekly hours <select id="targetHours" onchange="targetHoursChanged()"><option value="40" selected>40 hours</option><option value="48">48 hours</option><option value="56">56 hours</option><option value="custom">Custom</option></select></label><label id="customHoursWrap" style="display:none">Custom hours <input type="number" id="customHours" value="40" min="8" max="80" step="8" onchange="settingsChanged()" style="width:85px"></label><label><input type="checkbox" id="rotateMachines" checked onchange="settingsChanged()"> Randomize and rotate machines</label></div><p class="small">Each shift is 8 hours. The selected hours are treated as the minimum each available employee should receive. Employees below the minimum are prioritized before overtime. OFF may appear either after two consecutive workdays or before two consecutive workdays; other unused cells remain UNASSIGNED.</p></div>
+<div class="card"><h2>3. Schedule Settings</h2><div class="controls"><label>Schedule length <select id="scheduleLength" onchange="settingsChanged()"><option value="5">5 days</option><option value="6">6 days</option><option value="7" selected>7 days</option></select></label><label>Minimum weekly hours <select id="targetHours" onchange="targetHoursChanged()"><option value="40" selected>40 hours</option><option value="48">48 hours</option><option value="56">56 hours</option><option value="custom">Custom</option></select></label><label id="customHoursWrap" style="display:none">Custom hours <input type="number" id="customHours" value="40" min="8" max="80" step="8" onchange="settingsChanged()" style="width:85px"></label><label><input type="checkbox" id="rotateMachines" checked onchange="settingsChanged()"> Randomize and rotate machines</label>
+<label><input type="checkbox" id="guaranteeMinimum" checked onchange="settingsChanged()"> Use EBM2 / Plant 6 to meet minimum hours</label></div><p class="small">Each shift is 8 hours. The selected hours are treated as the minimum each available employee should receive. Employees below the minimum are prioritized before overtime. When local machine and Rework demand is insufficient, the scheduler can use EBM2 or Plant 6 to complete the minimum hours. OFF may appear either after two consecutive workdays or before two consecutive workdays.</p></div>
 
 <div class="card"><h2>4. Daily Staffing Requirements</h2><p class="small">Set the packers needed for each machine and Rework for each day. Rework can be 0–5.</p><div class="controls"><button class="light" onclick="setAllMachineStaffing(1)">All machines = 1</button><button class="light" onclick="setAllMachineStaffing(2)">All machines = 2</button><button class="light" onclick="setAllMachineStaffing(0)">All machines = 0</button></div><div class="controls"><label>Rework start day <select id="multiReworkStart"></select></label><label>Number of days <input type="number" id="multiReworkDays" value="1" min="1" max="7" style="width:75px"></label><label>Workers/day <input type="number" id="multiReworkCount" value="1" min="0" max="5" style="width:75px"></label><button onclick="applyMultiDayRework()">Apply Rework to Multiple Days</button></div><div class="table-wrap"><table id="staffingTable"><thead></thead><tbody></tbody></table></div></div>
 
@@ -95,8 +96,8 @@ function chooseWorker(day,slot,used){
   return candidates[0]||null
 }
 function confirmGenerate(){const msg=generated?"Generate a new schedule?\n\nThis will erase current assignments and manual changes. R/OFF selections will remain.":"Generate a new schedule?";if(confirm(msg))generateSchedule()}
-function generateSchedule(){if(!employees.length){showStatus("Load employees first.",false);return}employees.forEach(e=>{e.assignments=Array(7).fill("");e.locks=Array(7).fill(false);e.cycle=Array(7).fill(0);e.original=Array(7).fill("")});for(let d=0;d<activeDayCount();d++){const used=new Set();shuffled(requiredSlots(d)).forEach(slot=>{const pick=chooseWorker(d,slot,used);if(pick){pick.e.assignments[d]=slot;used.add(pick.i)}});employees.forEach(e=>{if(e.roff[d])return;if(!e.assignments[d])e.assignments[d]="UNASSIGNED"})}balanceToTarget();distributeOffAndUnassigned();generated=true;render();save();showStatus("New schedule generated.",true)}
-function rebalanceSchedule(){if(!generated){showStatus("Generate a schedule first.",false);return}for(let d=0;d<activeDayCount();d++){const valid=new Set(requiredSlots(d)),occupied=new Set();employees.forEach(e=>{if(e.roff[d]){e.assignments[d]="";e.locks[d]=false;return}if(e.locks[d]&&isWork(e.assignments[d])&&valid.has(e.assignments[d])&&!occupied.has(e.assignments[d]))occupied.add(e.assignments[d])});employees.forEach(e=>{if(e.roff[d]||e.locks[d])return;const a=e.assignments[d];if(isMachineAssignment(a)||a?.startsWith("R:")){if(valid.has(a)&&!occupied.has(a))occupied.add(a);else e.assignments[d]="UNASSIGNED"}});const used=new Set(employees.map((e,i)=>isWork(e.assignments[d])?i:null).filter(x=>x!==null));shuffled(requiredSlots(d).filter(s=>!occupied.has(s))).forEach(slot=>{const pick=chooseWorker(d,slot,used);if(pick){pick.e.assignments[d]=slot;used.add(pick.i)}});employees.forEach(e=>{if(e.roff[d])return;if(!e.assignments[d])e.assignments[d]="UNASSIGNED"})}balanceToTarget();distributeOffAndUnassigned();render();save();showStatus("Schedule rebalanced. Locked manual assignments were preserved.",true)}
+function generateSchedule(){if(!employees.length){showStatus("Load employees first.",false);return}employees.forEach(e=>{e.assignments=Array(7).fill("");e.locks=Array(7).fill(false);e.cycle=Array(7).fill(0);e.original=Array(7).fill("")});for(let d=0;d<activeDayCount();d++){const used=new Set();shuffled(requiredSlots(d)).forEach(slot=>{const pick=chooseWorker(d,slot,used);if(pick){pick.e.assignments[d]=slot;used.add(pick.i)}});employees.forEach(e=>{if(e.roff[d])return;if(!e.assignments[d])e.assignments[d]="UNASSIGNED"})}balanceToTarget();guaranteeMinimumHours();distributeOffAndUnassigned();generated=true;render();save();showStatus("New schedule generated.",true)}
+function rebalanceSchedule(){if(!generated){showStatus("Generate a schedule first.",false);return}for(let d=0;d<activeDayCount();d++){const valid=new Set(requiredSlots(d)),occupied=new Set();employees.forEach(e=>{if(e.roff[d]){e.assignments[d]="";e.locks[d]=false;return}if(e.locks[d]&&isWork(e.assignments[d])&&valid.has(e.assignments[d])&&!occupied.has(e.assignments[d]))occupied.add(e.assignments[d])});employees.forEach(e=>{if(e.roff[d]||e.locks[d])return;const a=e.assignments[d];if(isMachineAssignment(a)||a?.startsWith("R:")){if(valid.has(a)&&!occupied.has(a))occupied.add(a);else e.assignments[d]="UNASSIGNED"}});const used=new Set(employees.map((e,i)=>isWork(e.assignments[d])?i:null).filter(x=>x!==null));shuffled(requiredSlots(d).filter(s=>!occupied.has(s))).forEach(slot=>{const pick=chooseWorker(d,slot,used);if(pick){pick.e.assignments[d]=slot;used.add(pick.i)}});employees.forEach(e=>{if(e.roff[d])return;if(!e.assignments[d])e.assignments[d]="UNASSIGNED"})}balanceToTarget();guaranteeMinimumHours();distributeOffAndUnassigned();render();save();showStatus("Schedule rebalanced. Locked manual assignments were preserved.",true)}
 function balanceToTarget(){
   let changed=true;
   let guard=0;
@@ -159,6 +160,54 @@ function balanceToTarget(){
     }
   }
 }
+function guaranteeMinimumHours(){
+  if(!document.getElementById("guaranteeMinimum")?.checked)return;
+
+  const minimum=targetHours();
+  const dayCount=activeDayCount();
+  let plantToggle=0;
+
+  const workers=employees
+    .map((e,i)=>({e,i,deficit:minimum-hours(e)}))
+    .filter(x=>x.deficit>0)
+    .sort((a,b)=>b.deficit-a.deficit);
+
+  workers.forEach(({e})=>{
+    let neededShifts=Math.ceil(Math.max(0,minimum-hours(e))/8);
+
+    // Prefer available UNASSIGNED/blank days. R/OFF is never overridden.
+    const availableDays=[];
+    for(let d=0;d<dayCount;d++){
+      if(
+        !e.roff[d] &&
+        !isWork(e.assignments[d]) &&
+        !e.locks[d]
+      ){
+        availableDays.push(d);
+      }
+    }
+
+    // Spread other-plant days instead of clustering them.
+    availableDays.sort((a,b)=>{
+      const aNeighbor=
+        (a>0&&isWork(e.assignments[a-1])?1:0)+
+        (a<dayCount-1&&isWork(e.assignments[a+1])?1:0);
+      const bNeighbor=
+        (b>0&&isWork(e.assignments[b-1])?1:0)+
+        (b<dayCount-1&&isWork(e.assignments[b+1])?1:0);
+      if(aNeighbor!==bNeighbor)return aNeighbor-bNeighbor;
+      return Math.random()-.5;
+    });
+
+    for(const d of availableDays){
+      if(neededShifts<=0)break;
+      e.assignments[d]=(plantToggle++%2===0)?"EBM2":"PLANT 6";
+      e.locks[d]=false;
+      neededShifts--;
+    }
+  });
+}
+
 function distributeOffAndUnassigned(){
   const dayCount=activeDayCount();
   const offByDay=Array(dayCount).fill(0);
@@ -219,12 +268,14 @@ function assignSpecificWorker(){const d=Number(document.getElementById("directDa
 function refreshSwapOptions(){const d=Number(document.getElementById("swapDay")?.value||0),o=employees.map((e,i)=>`<option value="${i}">${esc(e.name||e.id)} — ${esc(assignmentDisplay(e.assignments[d]||"Blank"))}</option>`).join("");document.getElementById("swapA").innerHTML=o;document.getElementById("swapB").innerHTML=o}
 function swapWorkers(){const d=Number(document.getElementById("swapDay").value),a=Number(document.getElementById("swapA").value),b=Number(document.getElementById("swapB").value),ea=employees[a],eb=employees[b],override=document.getElementById("swapOverride").checked;if(a===b){showMini("swapStatus","Select two different employees.",false);return}const aa=ea.assignments[d]||"UNASSIGNED",bb=eb.assignments[d]||"UNASSIGNED";if(!override&&((isWork(bb)&&!qualified(ea,bb))||(isWork(aa)&&!qualified(eb,aa)))){showMini("swapStatus","Qualification check failed.",false);return}ea.assignments[d]=bb;eb.assignments[d]=aa;ea.locks[d]=isWork(bb);eb.locks[d]=isWork(aa);render();save();showMini("swapStatus","Workers swapped and locked.",true)}function showMini(id,msg,ok){const s=document.getElementById(id);s.className="status "+(ok?"success":"warning");s.textContent=msg}
 function renderSummary(){const b=document.querySelector("#summaryTable tbody"),t=targetHours();b.innerHTML=employees.map(e=>{const machine=e.assignments.slice(0,activeDayCount()).filter(a=>isMachineAssignment(a)||a?.startsWith("R:")).length,ebm=e.assignments.slice(0,activeDayCount()).filter(a=>a==="EBM2").length,p6=e.assignments.slice(0,activeDayCount()).filter(a=>a==="PLANT 6").length,h=hours(e),cls=h===t?"summary-exact":h<t?"summary-under":"summary-over",st=h===t?"Minimum met":h<t?`${t-h} hrs below minimum`:`${h-t} hrs over minimum`;return `<tr class="${cls}"><td>${esc(e.name)}</td><td>${esc(e.id)}</td><td>${machine}</td><td>${ebm}</td><td>${p6}</td><td>${h/8}</td><td>${h}</td><td>${t}</td><td>${st}</td></tr>`}).join("")}
-function validate(){if(!generated){document.getElementById("coverage").innerHTML="";return}const cards=[];for(let d=0;d<activeDayCount();d++){const assigned=new Set(employees.map(e=>e.assignments[d]).filter(a=>isMachineAssignment(a)||a?.startsWith("R:"))),missing=requiredSlots(d).filter(s=>!assigned.has(s));cards.push(`<div class="coverage-card"><b>${DAYS[d]}</b><br>${missing.length?`Missing: ${missing.map(assignmentDisplay).join(", ")}`:`All required positions covered`}</div>`)}const exact=employees.filter(e=>hours(e)===targetHours()).length,under=employees.filter(e=>hours(e)<targetHours()).length,over=employees.filter(e=>hours(e)>targetHours()).length;cards.push(`<div class="coverage-card"><b>Minimum Hours</b><br>Minimum met exactly: ${exact}<br>Below minimum: ${under}<br>Above minimum: ${over}</div>`);document.getElementById("coverage").innerHTML=cards.join("")}
+function validate(){if(!generated){document.getElementById("coverage").innerHTML="";return}const cards=[];for(let d=0;d<activeDayCount();d++){const assigned=new Set(employees.map(e=>e.assignments[d]).filter(a=>isMachineAssignment(a)||a?.startsWith("R:"))),missing=requiredSlots(d).filter(s=>!assigned.has(s));cards.push(`<div class="coverage-card"><b>${DAYS[d]}</b><br>${missing.length?`Missing: ${missing.map(assignmentDisplay).join(", ")}`:`All required positions covered`}</div>`)}const exact=employees.filter(e=>hours(e)===targetHours()).length,under=employees.filter(e=>hours(e)<targetHours()).length,over=employees.filter(e=>hours(e)>targetHours()).length;cards.push(`<div class="coverage-card"><b>Minimum Hours</b><br>Minimum met exactly: ${exact}<br>Below minimum: ${under}<br>Above minimum: ${over}${under?`<br><span class="small">Below-minimum employees do not have enough non-R/OFF days available.</span>`:""}</div>`);document.getElementById("coverage").innerHTML=cards.join("")}
 function showStatus(msg,ok){const s=document.getElementById("status");s.className="status "+(ok?"success":"warning");s.textContent=msg}
 function buildScheduleText(){return employees.map(e=>activeDays().map((_,d)=>e.roff[d]?"R/OFF":assignmentDisplay(e.assignments[d]||"")).join("\t")).join("\n")}async function copySchedule(){const text=buildScheduleText();try{await navigator.clipboard.writeText(text);showStatus("Schedule copied. Paste into Excel.",true)}catch{const ta=document.createElement("textarea");ta.value=text;ta.style.position="fixed";ta.style.left="-9999px";document.body.appendChild(ta);ta.select();document.execCommand("copy");ta.remove();showStatus("Schedule copied. Paste into Excel.",true)}}function downloadCSV(){const csv=buildScheduleText().split("\n").map(r=>r.split("\t").map(v=>`"${v.replace(/"/g,'""')}"`).join(",")).join("\r\n"),blob=new Blob(["\uFEFF"+csv],{type:"text/csv"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="schedule.csv";a.click();URL.revokeObjectURL(url)}
 function clearAll(){if(!confirm("Clear employees, machines, settings, requests, and schedule?"))return;machines=Array.from({length:13},(_,i)=>`B${i+1}`);staffing=Array.from({length:7},()=>Array(machines.length).fill(1));reworkReq=Array(7).fill(1);employees=[];generated=false;localStorage.removeItem("schedulerV3");document.getElementById("pasteBox").value="";document.getElementById("machineList").value=machines.join(", ");render()}
-function save(){localStorage.setItem("schedulerV3",JSON.stringify({machines,staffing,reworkReq,employees,generated,weekStart:document.getElementById("weekStart").value,scheduleLength:document.getElementById("scheduleLength").value,targetHoursChoice:document.getElementById("targetHours").value,customHours:document.getElementById("customHours").value,rotate:document.getElementById("rotateMachines").checked}))}
-function load(){const raw=localStorage.getItem("schedulerV3");if(!raw)return;try{const d=JSON.parse(raw);machines=d.machines||machines;staffing=d.staffing||staffing;reworkReq=d.reworkReq||reworkReq;employees=d.employees||[];generated=!!d.generated;employees.forEach(e=>{e.roff=e.roff||Array(7).fill(false);e.assignments=e.assignments||Array(7).fill("");e.locks=e.locks||Array(7).fill(false);e.original=e.original||Array(7).fill("");e.cycle=e.cycle||Array(7).fill(0)});if(d.weekStart)document.getElementById("weekStart").value=d.weekStart;if(d.scheduleLength)document.getElementById("scheduleLength").value=d.scheduleLength;if(d.targetHoursChoice)document.getElementById("targetHours").value=d.targetHoursChoice;if(d.customHours)document.getElementById("customHours").value=d.customHours;document.getElementById("rotateMachines").checked=d.rotate!==false;targetHoursChanged()}catch(e){}}
+function save(){localStorage.setItem("schedulerV3",JSON.stringify({machines,staffing,reworkReq,employees,generated,weekStart:document.getElementById("weekStart").value,scheduleLength:document.getElementById("scheduleLength").value,targetHoursChoice:document.getElementById("targetHours").value,customHours:document.getElementById("customHours").value,rotate:document.getElementById("rotateMachines").checked,guaranteeMinimum:document.getElementById("guaranteeMinimum").checked}))}
+function load(){const raw=localStorage.getItem("schedulerV3");if(!raw)return;try{const d=JSON.parse(raw);machines=d.machines||machines;staffing=d.staffing||staffing;reworkReq=d.reworkReq||reworkReq;employees=d.employees||[];generated=!!d.generated;employees.forEach(e=>{e.roff=e.roff||Array(7).fill(false);e.assignments=e.assignments||Array(7).fill("");e.locks=e.locks||Array(7).fill(false);e.original=e.original||Array(7).fill("");e.cycle=e.cycle||Array(7).fill(0)});if(d.weekStart)document.getElementById("weekStart").value=d.weekStart;if(d.scheduleLength)document.getElementById("scheduleLength").value=d.scheduleLength;if(d.targetHoursChoice)document.getElementById("targetHours").value=d.targetHoursChoice;if(d.customHours)document.getElementById("customHours").value=d.customHours;document.getElementById("rotateMachines").checked=d.rotate!==false;
+    document.getElementById("guaranteeMinimum").checked=d.guaranteeMinimum!==false;
+    targetHoursChanged()}catch(e){}}
 init();
 </script>
 </body>
