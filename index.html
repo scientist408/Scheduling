@@ -18,7 +18,7 @@
 
 <div class="card"><h2>2. Machines</h2><div class="controls"><label>Start <input type="number" id="machineStart" value="1" min="0" style="width:75px"></label><label>End <input type="number" id="machineEnd" value="13" min="0" style="width:75px"></label><label>Prefix <input id="machinePrefix" value="B" style="width:75px"></label><label>Suffix <input id="machineSuffix" value="" style="width:75px"></label><button onclick="buildMachineRange()">Create Range</button></div><textarea id="machineList" style="min-height:65px" placeholder="B1, B2, B3"></textarea><div class="controls"><button onclick="applyMachineList()">Apply Machine List</button><button class="light" onclick="resetMachines()">Reset B1–B13</button><span id="machineMessage" class="small"></span></div></div>
 
-<div class="card"><h2>3. Schedule Settings</h2><div class="controls"><label>Schedule length <select id="scheduleLength" onchange="settingsChanged()"><option value="5">5 days</option><option value="6">6 days</option><option value="7" selected>7 days</option></select></label><label>Minimum weekly hours <select id="targetHours" onchange="targetHoursChanged()"><option value="40" selected>40 hours</option><option value="48">48 hours</option><option value="56">56 hours</option><option value="custom">Custom</option></select></label><label id="customHoursWrap" style="display:none">Custom hours <input type="number" id="customHours" value="40" min="8" max="80" step="8" onchange="settingsChanged()" style="width:85px"></label><label><input type="checkbox" id="rotateMachines" checked onchange="settingsChanged()"> Randomize and rotate machines</label></div><p class="small">Each shift is 8 hours. The selected hours are treated as the minimum each available employee should receive. The scheduler assigns employees below the minimum before giving overtime to anyone else. OFF is created after at least two consecutive workdays once the employee is at or above the minimum. Remaining nonworking days stay UNASSIGNED, and OFF days are distributed across the week.</p></div>
+<div class="card"><h2>3. Schedule Settings</h2><div class="controls"><label>Schedule length <select id="scheduleLength" onchange="settingsChanged()"><option value="5">5 days</option><option value="6">6 days</option><option value="7" selected>7 days</option></select></label><label>Minimum weekly hours <select id="targetHours" onchange="targetHoursChanged()"><option value="40" selected>40 hours</option><option value="48">48 hours</option><option value="56">56 hours</option><option value="custom">Custom</option></select></label><label id="customHoursWrap" style="display:none">Custom hours <input type="number" id="customHours" value="40" min="8" max="80" step="8" onchange="settingsChanged()" style="width:85px"></label><label><input type="checkbox" id="rotateMachines" checked onchange="settingsChanged()"> Randomize and rotate machines</label></div><p class="small">Each shift is 8 hours. The selected hours are treated as the minimum each available employee should receive. Employees below the minimum are prioritized before overtime. OFF may appear either after two consecutive workdays or before two consecutive workdays; other unused cells remain UNASSIGNED.</p></div>
 
 <div class="card"><h2>4. Daily Staffing Requirements</h2><p class="small">Set the packers needed for each machine and Rework for each day. Rework can be 0–5.</p><div class="controls"><button class="light" onclick="setAllMachineStaffing(1)">All machines = 1</button><button class="light" onclick="setAllMachineStaffing(2)">All machines = 2</button><button class="light" onclick="setAllMachineStaffing(0)">All machines = 0</button></div><div class="controls"><label>Rework start day <select id="multiReworkStart"></select></label><label>Number of days <input type="number" id="multiReworkDays" value="1" min="1" max="7" style="width:75px"></label><label>Workers/day <input type="number" id="multiReworkCount" value="1" min="0" max="5" style="width:75px"></label><button onclick="applyMultiDayRework()">Apply Rework to Multiple Days</button></div><div class="table-wrap"><table id="staffingTable"><thead></thead><tbody></tbody></table></div></div>
 
@@ -36,7 +36,28 @@ let machines=Array.from({length:13},(_,i)=>`B${i+1}`),staffing=Array.from({lengt
 function activeDayCount(){return Number(document.getElementById("scheduleLength").value||7)}function activeDays(){return DAYS.slice(0,activeDayCount())}function targetHours(){const v=document.getElementById("targetHours").value;return v==="custom"?Math.max(8,Number(document.getElementById("customHours").value||40)):Number(v)}function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":["&gt;"], '"':"&quot;","'":"&#039;"}[c]))}function createEmployee(name="",id=""){return{name,id,skills:"ALL",roff:Array(7).fill(false),assignments:Array(7).fill(""),locks:Array(7).fill(false),original:Array(7).fill(""),cycle:Array(7).fill(0)}}
 function settingsChanged(){render();save()}function targetHoursChanged(){document.getElementById("customHoursWrap").style.display=document.getElementById("targetHours").value==="custom"?"inline-flex":"none";settingsChanged()}
 function init(){const d=new Date(),dow=d.getDay(),diff=dow===0?-6:1-dow;d.setDate(d.getDate()+diff);document.getElementById("weekStart").value=d.toISOString().slice(0,10);load();document.getElementById("machineList").value=machines.join(", ");render()}document.getElementById("weekStart").addEventListener("change",()=>{render();save()});
-function parseEmployees(text){return text.trim().split(/\r?\n/).filter(Boolean).map(line=>{let p=line.split("\t");if(p.length<2)p=line.split(",");return createEmployee((p[0]||"").trim(),(p[1]||"").trim())}).filter(e=>e.name||e.id)}function loadEmployees(){const t=document.getElementById("pasteBox").value.trim();if(!t){showStatus("Paste employees first.",false);return}employees=parseEmployees(t);generated=false;render();save();showStatus(`${employees.length} employees loaded.`,true)}function addEmployee(){employees.push(createEmployee());render();save()}function removeEmployee(i){if(confirm("Remove this employee?")){employees.splice(i,1);render();save()}}
+function parseEmployees(text){
+  return text.trim().split(/\r?\n/).filter(line=>line.trim()).map(line=>{
+    let p=line.split("\t");
+    if(p.length<2)p=line.split(",");
+    if(p.length<2){
+      const match=line.trim().match(/^(.*?)\s{2,}(.+)$/);
+      p=match?[match[1],match[2]]:[line.trim(),""];
+    }
+    return createEmployee((p[0]||"").trim(),(p[1]||"").trim());
+  }).filter(e=>e.name||e.id);
+}
+function loadEmployees(){
+  const t=document.getElementById("pasteBox").value.trim();
+  if(!t){showStatus("Paste employees first.",false);return}
+  const loaded=parseEmployees(t);
+  if(!loaded.length){showStatus("No valid employees were found. Paste Name and ID in two columns.",false);return}
+  employees=loaded;
+  generated=false;
+  render();
+  save();
+  showStatus(`${employees.length} employees loaded and ready for scheduling.`,true);
+}function addEmployee(){employees.push(createEmployee());render();save()}function removeEmployee(i){if(confirm("Remove this employee?")){employees.splice(i,1);render();save()}}
 function buildMachineRange(){const s=Number(document.getElementById("machineStart").value),e=Number(document.getElementById("machineEnd").value),p=document.getElementById("machinePrefix").value.trim().toUpperCase(),x=document.getElementById("machineSuffix").value.trim().toUpperCase();if(!Number.isFinite(s)||!Number.isFinite(e)||e<s){alert("Enter a valid range.");return}document.getElementById("machineList").value=Array.from({length:e-s+1},(_,i)=>`${p}${s+i}${x}`).join(", ")}
 function applyMachineList(){const list=[...new Set(document.getElementById("machineList").value.split(/[\n,;]+/).map(x=>x.trim().toUpperCase()).filter(Boolean))];if(!list.length){alert("Enter at least one machine.");return}if(generated&&!confirm("Changing machines may invalidate the current schedule. Continue?"))return;const old=[...machines],oldStaff=staffing.map(r=>[...r]);machines=list;staffing=Array.from({length:7},(_,d)=>machines.map(m=>{const i=old.indexOf(m);return i>=0?(oldStaff[d]?.[i]??1):1}));employees.forEach(e=>{e.assignments=e.assignments.map(a=>isMachineAssignment(a)&&!machines.includes(baseSkill(a))?"UNASSIGNED":a)});generated=false;render();save();document.getElementById("machineMessage").textContent=`${machines.length} machines applied.`}function resetMachines(){document.getElementById("machineList").value=Array.from({length:13},(_,i)=>`B${i+1}`).join(", ");applyMachineList()}
 function dateLabel(i){const b=document.getElementById("weekStart").value;if(!b)return"";const d=new Date(b+"T12:00:00");d.setDate(d.getDate()+i);return d.toLocaleDateString(undefined,{month:"short",day:"numeric"})}
@@ -53,178 +74,138 @@ function inlineAssign(i,d,v){const e=employees[i];if(!e)return;let slot=v;if(v==
 function requiredSlots(day){const a=[];machines.forEach((m,mi)=>{for(let k=1;k<=Number(staffing[day][mi]||0);k++)a.push(`M:${m}#${k}`)});for(let r=1;r<=Number(reworkReq[day]||0);r++)a.push(`R:${r}`);return a}
 function qualified(e,slot){const s=(e.skills||"ALL").toUpperCase().split(/[,;\s]+/).filter(Boolean);return s.includes("ALL")||s.includes(baseSkill(slot))}function shuffled(a){a=[...a];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}function currentStreak(e,day){let n=0;for(let d=day-1;d>=0;d--){if(isWork(e.assignments[d]))n++;else break}return n}
 function chooseWorker(day,slot,used){
-  const target=targetHours();
-  const c=shuffled(employees.map((e,i)=>({e,i})).filter(x=>
+  const minimum=targetHours();
+  const candidates=shuffled(employees.map((e,i)=>({e,i})).filter(x=>
     !used.has(x.i)&&
     !x.e.roff[day]&&
     qualified(x.e,slot)&&
     !isWork(x.e.assignments[day])
   ));
-  c.sort((a,b)=>{
+  candidates.sort((a,b)=>{
     const ah=hours(a.e),bh=hours(b.e);
-    const ab=ah<target,bb=bh<target;
-    if(ab!==bb)return ab?-1:1;
-    if(ab&&bb){
-      const ad=target-ah,bd=target-bh;
-      if(ad!==bd)return bd-ad;
+    const aBelow=ah<minimum,bBelow=bh<minimum;
+    if(aBelow!==bBelow)return aBelow?-1:1;
+    if(aBelow&&bBelow){
+      const aDeficit=minimum-ah,bDeficit=minimum-bh;
+      if(aDeficit!==bDeficit)return bDeficit-aDeficit;
     }
-    const as=currentStreak(a.e,day),bs=currentStreak(b.e,day);
-    if(as<3&&bs>=3)return-1;
-    if(bs<3&&as>=3)return 1;
     if(ah!==bh)return ah-bh;
     return 0;
   });
-  return c[0]||null
+  return candidates[0]||null
 }
 function confirmGenerate(){const msg=generated?"Generate a new schedule?\n\nThis will erase current assignments and manual changes. R/OFF selections will remain.":"Generate a new schedule?";if(confirm(msg))generateSchedule()}
-function generateSchedule(){if(!employees.length){showStatus("Load employees first.",false);return}employees.forEach(e=>{e.assignments=Array(7).fill("");e.locks=Array(7).fill(false);e.cycle=Array(7).fill(0);e.original=Array(7).fill("")});for(let d=0;d<activeDayCount();d++){const used=new Set();shuffled(requiredSlots(d)).forEach(slot=>{const pick=chooseWorker(d,slot,used);if(pick){pick.e.assignments[d]=slot;used.add(pick.i)}});employees.forEach(e=>{if(e.roff[d])return;if(!e.assignments[d]){const streak=currentStreak(e,d);e.assignments[d]="UNASSIGNED"}})}balanceToTarget();distributeOffAndUnassigned();generated=true;render();save();showStatus("New schedule generated.",true)}
-function rebalanceSchedule(){if(!generated){showStatus("Generate a schedule first.",false);return}for(let d=0;d<activeDayCount();d++){const valid=new Set(requiredSlots(d)),occupied=new Set();employees.forEach(e=>{if(e.roff[d]){e.assignments[d]="";e.locks[d]=false;return}if(e.locks[d]&&isWork(e.assignments[d])&&valid.has(e.assignments[d])&&!occupied.has(e.assignments[d]))occupied.add(e.assignments[d])});employees.forEach(e=>{if(e.roff[d]||e.locks[d])return;const a=e.assignments[d];if(isMachineAssignment(a)||a?.startsWith("R:")){if(valid.has(a)&&!occupied.has(a))occupied.add(a);else e.assignments[d]="UNASSIGNED"}});const used=new Set(employees.map((e,i)=>isWork(e.assignments[d])?i:null).filter(x=>x!==null));shuffled(requiredSlots(d).filter(s=>!occupied.has(s))).forEach(slot=>{const pick=chooseWorker(d,slot,used);if(pick){pick.e.assignments[d]=slot;used.add(pick.i)}});employees.forEach(e=>{if(e.roff[d])return;if(!e.assignments[d]){const streak=currentStreak(e,d);e.assignments[d]="UNASSIGNED"}})}balanceToTarget();distributeOffAndUnassigned();render();save();showStatus("Schedule rebalanced. Locked manual assignments were preserved.",true)}
+function generateSchedule(){if(!employees.length){showStatus("Load employees first.",false);return}employees.forEach(e=>{e.assignments=Array(7).fill("");e.locks=Array(7).fill(false);e.cycle=Array(7).fill(0);e.original=Array(7).fill("")});for(let d=0;d<activeDayCount();d++){const used=new Set();shuffled(requiredSlots(d)).forEach(slot=>{const pick=chooseWorker(d,slot,used);if(pick){pick.e.assignments[d]=slot;used.add(pick.i)}});employees.forEach(e=>{if(e.roff[d])return;if(!e.assignments[d])e.assignments[d]="UNASSIGNED"})}balanceToTarget();distributeOffAndUnassigned();generated=true;render();save();showStatus("New schedule generated.",true)}
+function rebalanceSchedule(){if(!generated){showStatus("Generate a schedule first.",false);return}for(let d=0;d<activeDayCount();d++){const valid=new Set(requiredSlots(d)),occupied=new Set();employees.forEach(e=>{if(e.roff[d]){e.assignments[d]="";e.locks[d]=false;return}if(e.locks[d]&&isWork(e.assignments[d])&&valid.has(e.assignments[d])&&!occupied.has(e.assignments[d]))occupied.add(e.assignments[d])});employees.forEach(e=>{if(e.roff[d]||e.locks[d])return;const a=e.assignments[d];if(isMachineAssignment(a)||a?.startsWith("R:")){if(valid.has(a)&&!occupied.has(a))occupied.add(a);else e.assignments[d]="UNASSIGNED"}});const used=new Set(employees.map((e,i)=>isWork(e.assignments[d])?i:null).filter(x=>x!==null));shuffled(requiredSlots(d).filter(s=>!occupied.has(s))).forEach(slot=>{const pick=chooseWorker(d,slot,used);if(pick){pick.e.assignments[d]=slot;used.add(pick.i)}});employees.forEach(e=>{if(e.roff[d])return;if(!e.assignments[d])e.assignments[d]="UNASSIGNED"})}balanceToTarget();distributeOffAndUnassigned();render();save();showStatus("Schedule rebalanced. Locked manual assignments were preserved.",true)}
 function balanceToTarget(){
-  let guard=0;
   let changed=true;
-
+  let guard=0;
   while(changed&&guard++<1000){
     changed=false;
-
-    const under=employees
+    const below=employees
       .map((e,i)=>({e,i,h:hours(e),deficit:targetHours()-hours(e)}))
       .filter(x=>x.deficit>0)
       .sort((a,b)=>b.deficit-a.deficit);
+    if(!below.length)break;
 
-    if(!under.length)break;
-
-    const over=employees
+    const overtime=employees
       .map((e,i)=>({e,i,h:hours(e),surplus:hours(e)-targetHours()}))
       .filter(x=>x.surplus>0)
       .sort((a,b)=>b.surplus-a.surplus);
 
-    outerTransfer:
-    for(const u of under){
-      for(const o of over){
+    transfer:
+    for(const receiver of below){
+      for(const donor of overtime){
         for(let d=0;d<activeDayCount();d++){
-          const slot=o.e.assignments[d];
+          const slot=donor.e.assignments[d];
           if(
             isWork(slot)&&
-            !o.e.locks[d]&&
-            !u.e.roff[d]&&
-            !isWork(u.e.assignments[d])&&
-            qualified(u.e,slot)
+            !donor.e.locks[d]&&
+            !receiver.e.roff[d]&&
+            !isWork(receiver.e.assignments[d])&&
+            qualified(receiver.e,slot)
           ){
-            u.e.assignments[d]=slot;
-            u.e.locks[d]=false;
-            o.e.assignments[d]="UNASSIGNED";
+            receiver.e.assignments[d]=slot;
+            receiver.e.locks[d]=false;
+            donor.e.assignments[d]="UNASSIGNED";
             changed=true;
-            break outerTransfer;
+            break transfer;
           }
         }
       }
     }
-
     if(changed)continue;
 
-    outerOpen:
+    openSlot:
     for(let d=0;d<activeDayCount();d++){
       const occupied=new Set(
         employees.map(e=>e.assignments[d]).filter(a=>isMachineAssignment(a)||a?.startsWith("R:"))
       );
       const openSlots=requiredSlots(d).filter(slot=>!occupied.has(slot));
-
       for(const slot of openSlots){
-        const candidates=under.filter(x=>
+        const possible=below.filter(x=>
           !x.e.roff[d]&&
           !isWork(x.e.assignments[d])&&
           qualified(x.e,slot)
         );
-        if(candidates.length){
-          candidates.sort((a,b)=>b.deficit-a.deficit);
-          candidates[0].e.assignments[d]=slot;
-          candidates[0].e.locks[d]=false;
+        if(possible.length){
+          possible.sort((a,b)=>b.deficit-a.deficit);
+          possible[0].e.assignments[d]=slot;
+          possible[0].e.locks[d]=false;
           changed=true;
-          break outerOpen;
+          break openSlot;
         }
       }
     }
   }
-
-  employees.forEach(e=>{
-    for(let d=0;d<activeDayCount();d++){
-      if(e.roff[d])continue;
-      if(e.assignments[d]==="OFF"&&hours(e)<targetHours()){
-        e.assignments[d]="UNASSIGNED";
-      }
-      if(!e.assignments[d]){
-        const streak=currentStreak(e,d);
-        e.assignments[d]="UNASSIGNED";
-      }
-    }
-  });
-}}}
-
+}
 function distributeOffAndUnassigned(){
   const dayCount=activeDayCount();
-  const offCountByDay=Array(dayCount).fill(0);
+  const offByDay=Array(dayCount).fill(0);
 
-  // Recalculate nonworking statuses after the final assignments are known.
   employees.forEach(e=>{
     for(let d=0;d<dayCount;d++){
-      if(e.roff[d])continue;
-      if(!isWork(e.assignments[d])&&!e.locks[d]){
-        e.assignments[d]="UNASSIGNED";
-      }
+      if(e.roff[d]||e.locks[d]||isWork(e.assignments[d]))continue;
+      e.assignments[d]="UNASSIGNED";
     }
   });
 
-  // Employees below the minimum keep UNASSIGNED cells so supervisors
-  // can see that additional hours are still needed.
-  const eligibleEmployees=shuffled(
+  const eligible=shuffled(
     employees.map((e,i)=>({e,i})).filter(x=>hours(x.e)>=targetHours())
   );
 
-  eligibleEmployees.forEach(({e})=>{
-    const nonworkDays=[];
+  eligible.forEach(({e})=>{
+    const nonwork=[];
     for(let d=0;d<dayCount;d++){
-      if(!e.roff[d]&&!isWork(e.assignments[d])&&!e.locks[d]){
-        nonworkDays.push(d);
-      }
+      if(!e.roff[d]&&!e.locks[d]&&!isWork(e.assignments[d]))nonwork.push(d);
     }
+    if(!nonwork.length)return;
 
-    if(!nonworkDays.length)return;
+    const wanted=Math.max(1,Math.floor((nonwork.length+1)/2));
 
-    // With two nonworking days, normally create one OFF and leave
-    // one UNASSIGNED. This creates a visible mix instead of two blocks.
-    const desiredOffCount=Math.max(1,Math.ceil(nonworkDays.length/2));
+    const valid=nonwork.filter(d=>{
+      const twoBefore=
+        d>=2&&
+        isWork(e.assignments[d-1])&&
+        isWork(e.assignments[d-2]);
 
-    const candidates=nonworkDays.filter(d=>{
-      // OFF is permitted after at least two immediately preceding
-      // consecutive workdays.
-      return d>=2&&isWork(e.assignments[d-1])&&isWork(e.assignments[d-2]);
+      const twoAfter=
+        d<=dayCount-3&&
+        isWork(e.assignments[d+1])&&
+        isWork(e.assignments[d+2]);
+
+      return twoBefore||twoAfter;
     });
 
-    candidates.sort((a,b)=>{
-      // Spread OFF days across the week and avoid repeatedly choosing
-      // the same column for many employees.
-      if(offCountByDay[a]!==offCountByDay[b]){
-        return offCountByDay[a]-offCountByDay[b];
-      }
-
-      // Prefer days farther from an existing OFF/R-OFF for this employee.
-      const distanceScore=day=>{
-        let nearest=99;
-        for(let x=0;x<dayCount;x++){
-          if(x===day)continue;
-          if(e.roff[x]||e.assignments[x]==="OFF"){
-            nearest=Math.min(nearest,Math.abs(day-x));
-          }
-        }
-        return nearest;
-      };
-      return distanceScore(b)-distanceScore(a);
+    valid.sort((a,b)=>{
+      if(offByDay[a]!==offByDay[b])return offByDay[a]-offByDay[b];
+      return Math.random()-.5;
     });
 
-    for(let n=0;n<Math.min(desiredOffCount,candidates.length);n++){
-      const day=candidates[n];
-      e.assignments[day]="OFF";
-      offCountByDay[day]++;
+    for(let n=0;n<Math.min(wanted,valid.length);n++){
+      const d=valid[n];
+      e.assignments[d]="OFF";
+      offByDay[d]++;
     }
   });
 }
